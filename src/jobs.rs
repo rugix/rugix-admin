@@ -19,6 +19,7 @@ pub(crate) struct JobManager {
 struct JobEntry {
     job: jobs::Job,
     events: VecDeque<events::AdminEvent>,
+    last_install_progress_percent: Option<u8>,
     tx: broadcast::Sender<events::AdminEvent>,
 }
 
@@ -56,6 +57,7 @@ impl JobManager {
             JobEntry {
                 job: job.clone(),
                 events,
+                last_install_progress_percent: None,
                 tx: tx.clone(),
             },
         );
@@ -134,14 +136,23 @@ impl JobManager {
     }
 
     pub(crate) async fn emit_install_progress(&self, job_id: &str, progress: f64) {
-        self.push_event(
-            job_id,
-            events::AdminEvent::InstallProgress(events::InstallProgressEvent::new(
-                job_id.to_owned(),
-                progress,
-            )),
-        )
-        .await;
+        let progress_percent = rounded_progress_percent(progress);
+        let event = events::AdminEvent::InstallProgress(events::InstallProgressEvent::new(
+            job_id.to_owned(),
+            f64::from(progress_percent),
+        ));
+        let tx = {
+            let mut inner = self.inner.write().await;
+            let Some(entry) = inner.get_mut(job_id) else {
+                return;
+            };
+            if entry.last_install_progress_percent == Some(progress_percent) {
+                return;
+            }
+            entry.last_install_progress_percent = Some(progress_percent);
+            push_entry_event(entry, event.clone())
+        };
+        let _ = tx.send(event);
     }
 
     async fn update_job(&self, job_id: &str, update: impl FnOnce(&mut jobs::Job)) {
@@ -163,14 +174,25 @@ impl JobManager {
             let Some(entry) = inner.get_mut(job_id) else {
                 return;
             };
-            entry.events.push_back(event.clone());
-            while entry.events.len() > 512 {
-                entry.events.pop_front();
-            }
-            entry.tx.clone()
+            push_entry_event(entry, event.clone())
         };
         let _ = tx.send(event);
     }
+}
+
+fn push_entry_event(
+    entry: &mut JobEntry,
+    event: events::AdminEvent,
+) -> broadcast::Sender<events::AdminEvent> {
+    entry.events.push_back(event);
+    while entry.events.len() > 512 {
+        entry.events.pop_front();
+    }
+    entry.tx.clone()
+}
+
+fn rounded_progress_percent(progress: f64) -> u8 {
+    progress.clamp(0.0, 100.0).round() as u8
 }
 
 fn now() -> String {
