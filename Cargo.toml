@@ -30,6 +30,9 @@ uuid = { version = "1.11.0", features = ["v4"] }
 [build-dependencies]
 sidex-build-rs = { git = "https://github.com/silitics/sidex.git" }
 
+[dev-dependencies]
+serde_urlencoded = "0.7.1"
+
 [lints.clippy]
 needless_borrows_for_generic_args = "allow"
 new_without_default = "allow"

@@ -24,6 +24,7 @@ def test_renders_all_screens_and_saves_screenshots(
     page.goto(admin_server.frontend_url)
 
     expect(page.get_by_text("Rugix Admin")).to_be_visible()
+    expect(page.get_by_text("Dangerously insecure mode enabled")).to_be_visible()
     expect(page.get_by_text("Current")).to_be_visible()
     expect(page.get_by_text("Default")).to_be_visible()
     page.screenshot(path=str(screenshot_path(request, "system")))
@@ -46,6 +47,25 @@ def test_renders_all_screens_and_saves_screenshots(
     expect(page.get_by_text("Recent Jobs")).to_be_visible()
     expect(page.get_by_text("Job Log")).to_be_visible()
     page.screenshot(path=str(screenshot_path(request, "jobs")))
+
+
+def test_secure_mode_hides_insecure_warning_and_install_options(
+    page: Page, admin_server: AdminServer
+) -> None:
+    page.route(
+        "**/api/config",
+        lambda route: route.fulfill(json={"dangerouslyInsecure": False}),
+    )
+
+    page.goto(admin_server.frontend_url)
+
+    expect(page.get_by_text("Dangerously insecure mode enabled")).to_have_count(0)
+    page.get_by_text("Advanced").click()
+    expect(page.get_by_label("Reboot")).to_be_visible()
+    expect(page.get_by_label("Root certificate")).to_have_count(0)
+    expect(page.get_by_label("Bundle hash")).to_have_count(0)
+    expect(page.get_by_label("Skip verification")).to_have_count(0)
+    expect(page.get_by_label("Allow missing index")).to_have_count(0)
 
 
 def test_renders_component_conflicts_screenshot(

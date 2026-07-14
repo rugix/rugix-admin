@@ -32,6 +32,7 @@ impl reportify::Error for ApiErrorData {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ApiError(Report<ApiErrorData>);
 
 impl ApiError {
@@ -46,6 +47,11 @@ impl ApiError {
 
     fn from_data(error: ApiErrorData) -> Self {
         Self(Report::new(error))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn code(&self) -> &'static str {
+        self.0.error().code
     }
 
     pub(crate) fn bad_request(code: &'static str, message: impl Into<String>) -> Self {

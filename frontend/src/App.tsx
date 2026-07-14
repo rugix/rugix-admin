@@ -23,10 +23,9 @@ import { applyEvent, isTerminal, updateBrowserProgress } from "./shared/lib/jobE
 import { initialTheme } from "./shared/lib/theme";
 import type { JobLog, Tab, Theme } from "./types";
 
-const isMarketingBuild = import.meta.env.VITE_RUGIX_ADMIN_MARKETING === "true";
-
 export function App() {
   const [tab, setTab] = useState<Tab>("system");
+  const [configuration, setConfiguration] = useState<api.ConfigResponse>();
   const [system, setSystem] = useState<api.SystemInfoResponse>();
   const [components, setComponents] = useState<api.ComponentsCheckResponse>();
   const [appsList, setAppsList] = useState<api.AppSummary[]>([]);
@@ -48,17 +47,21 @@ export function App() {
 
   async function refresh() {
     setError(undefined);
-    const [systemInfo, componentReport, appList, jobList] = await Promise.allSettled([
+    const [serverConfiguration, systemInfo, componentReport, appList, jobList] = await Promise.allSettled([
+      AdminApi.configuration(),
       AdminApi.systemInfo(),
       AdminApi.components(),
       AdminApi.apps(),
       AdminApi.jobs(),
     ]);
+    if (serverConfiguration.status === "fulfilled") setConfiguration(serverConfiguration.value);
     if (systemInfo.status === "fulfilled") setSystem(systemInfo.value);
     if (componentReport.status === "fulfilled") setComponents(componentReport.value);
     if (appList.status === "fulfilled") setAppsList(appList.value.apps);
     if (jobList.status === "fulfilled") setJobsList(jobList.value.jobs);
-    const firstError = [systemInfo, componentReport, appList, jobList].find((result) => result.status === "rejected");
+    const firstError = [serverConfiguration, systemInfo, componentReport, appList, jobList].find(
+      (result) => result.status === "rejected",
+    );
     if (firstError?.status === "rejected") setError(errorMessage(firstError.reason));
   }
 
@@ -178,7 +181,7 @@ export function App() {
       />
 
       <main className="mx-auto max-w-[1520px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        {!isMarketingBuild && <DemoDisclaimer />}
+        {configuration?.dangerouslyInsecure && <DemoDisclaimer />}
         <PageTitle tab={tab} />
         {error && <ErrorBanner message={error} />}
         {activeJobId && (
@@ -196,6 +199,7 @@ export function App() {
         {tab === "system" && (
           <SystemPage
             system={system}
+            dangerouslyInsecure={configuration?.dangerouslyInsecure ?? false}
             onAction={(action) => void runSystemAction(action)}
             onUpload={(file, options) => void upload("system", file, options)}
             onUrlInstall={(url, options) => void installSystemUrl(url, options)}
@@ -205,6 +209,7 @@ export function App() {
         {tab === "apps" && (
           <AppsPage
             apps={appsList}
+            dangerouslyInsecure={configuration?.dangerouslyInsecure ?? false}
             selected={selectedSummary}
             info={appInfo}
             onSelect={setSelectedApp}

@@ -11,6 +11,12 @@ record HealthResponse {
     status: string,
 }
 
+/// Public Rugix Admin server configuration.
+record ConfigResponse {
+    /// Whether explicitly insecure installation options are enabled.
+    dangerously_insecure: bool,
+}
+
 /// Error response body.
 record ApiErrorResponse {
     /// Error details.

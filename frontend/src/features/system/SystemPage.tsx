@@ -10,11 +10,13 @@ import { StatusCell } from "./StatusCell";
 
 export function SystemPage({
   system,
+  dangerouslyInsecure,
   onAction,
   onUpload,
   onUrlInstall,
 }: {
   system?: api.SystemInfoResponse;
+  dangerouslyInsecure: boolean;
   onAction: (action: string) => void;
   onUpload: (file: File, options: InstallOptions) => void;
   onUrlInstall: (url: string, options: InstallOptions) => void;
@@ -29,7 +31,7 @@ export function SystemPage({
           </div>
         </Surface>
 
-        <UploadPanel title="System Update" fileLabel="Update bundle" icon={<Upload size={18} />} system allowUrl onUpload={onUpload} onUrlInstall={onUrlInstall} />
+        <UploadPanel title="System Update" fileLabel="Update bundle" icon={<Upload size={18} />} system allowUrl dangerouslyInsecure={dangerouslyInsecure} onUpload={onUpload} onUrlInstall={onUrlInstall} />
       </div>
 
       <Surface title="System Actions">

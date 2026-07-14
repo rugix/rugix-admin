@@ -31,6 +31,10 @@ pub(crate) async fn health() -> Json<api::HealthResponse> {
     Json(api::HealthResponse::new("ok".to_owned()))
 }
 
+pub(crate) async fn configuration(State(state): State<ServerState>) -> Json<api::ConfigResponse> {
+    Json(api::ConfigResponse::new(state.dangerously_insecure))
+}
+
 pub(crate) async fn system_info() -> ApiResult<Json<api::SystemInfoResponse>> {
     let raw = run_json_command(&["system", "info", "--json"]).await?;
     let boot = raw.get("boot");
@@ -66,7 +70,7 @@ pub(crate) async fn upload_system_update(
     Query(query): Query<SystemInstallQuery>,
     multipart: Multipart,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let args = system_update_args(query, "-".to_owned());
+    let args = system_update_args(query, "-".to_owned(), state.dangerously_insecure)?;
 
     state
         .jobs
@@ -87,6 +91,11 @@ pub(crate) async fn install_system_update_from_url(
     Query(query): Query<SystemInstallQuery>,
     Json(request): Json<SystemUpdateUrlRequest>,
 ) -> ApiResult<Json<api::JobResponse>> {
+    let args = system_update_args(
+        query,
+        request.url.trim().to_owned(),
+        state.dangerously_insecure,
+    )?;
     let url = request.url.trim();
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err(ApiError::bad_request(
@@ -95,7 +104,6 @@ pub(crate) async fn install_system_update_from_url(
         ));
     }
 
-    let args = system_update_args(query, url.to_owned());
     let job = state
         .jobs
         .create(
@@ -191,7 +199,11 @@ pub(crate) async fn upload_app_bundle(
     multipart: Multipart,
 ) -> ApiResult<Json<api::JobResponse>> {
     let mut args = vec!["apps".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &query.common());
+    apply_install_options(
+        &mut args,
+        &query.into_insecure_options(),
+        state.dangerously_insecure,
+    )?;
     args.push("-".to_owned());
 
     state
@@ -316,7 +328,7 @@ pub(crate) struct AppActionQuery {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct InstallQuery {
+pub(crate) struct InsecureInstallOptions {
     bundle_hash: Option<String>,
     root_cert: Option<String>,
     insecure_skip_bundle_verification: Option<bool>,
@@ -324,7 +336,7 @@ pub(crate) struct InstallQuery {
 }
 
 #[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct SystemInstallQuery {
     #[serde(alias = "bundle_hash")]
     bundle_hash: Option<String>,
@@ -342,13 +354,13 @@ pub(crate) struct SystemInstallQuery {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct SystemUpdateUrlRequest {
     url: String,
 }
 
 #[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct AppInstallQuery {
     #[serde(alias = "bundle_hash")]
     bundle_hash: Option<String>,
@@ -361,56 +373,126 @@ pub(crate) struct AppInstallQuery {
 }
 
 impl SystemInstallQuery {
-    fn common(&self) -> InstallQuery {
-        InstallQuery {
-            bundle_hash: self.bundle_hash.clone(),
-            root_cert: self.root_cert.clone(),
-            insecure_skip_bundle_verification: self.insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index: self.insecure_allow_missing_block_index,
-        }
+    fn into_parts(self) -> (InsecureInstallOptions, SystemInstallOptions) {
+        // Keep this destructuring exhaustive: every future API option must be
+        // explicitly classified as secure or insecure before the code compiles.
+        let Self {
+            bundle_hash,
+            root_cert,
+            insecure_skip_bundle_verification,
+            insecure_allow_missing_block_index,
+            reboot,
+            boot_group,
+            keep_overlay,
+        } = self;
+        (
+            InsecureInstallOptions {
+                bundle_hash,
+                root_cert,
+                insecure_skip_bundle_verification,
+                insecure_allow_missing_block_index,
+            },
+            SystemInstallOptions {
+                reboot,
+                boot_group,
+                keep_overlay,
+            },
+        )
     }
 }
 
 impl AppInstallQuery {
-    fn common(&self) -> InstallQuery {
-        InstallQuery {
-            bundle_hash: self.bundle_hash.clone(),
-            root_cert: self.root_cert.clone(),
-            insecure_skip_bundle_verification: self.insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index: self.insecure_allow_missing_block_index,
+    fn into_insecure_options(self) -> InsecureInstallOptions {
+        // Keep this destructuring exhaustive for the same fail-closed property
+        // as `SystemInstallQuery::into_parts`.
+        let Self {
+            bundle_hash,
+            root_cert,
+            insecure_skip_bundle_verification,
+            insecure_allow_missing_block_index,
+        } = self;
+        InsecureInstallOptions {
+            bundle_hash,
+            root_cert,
+            insecure_skip_bundle_verification,
+            insecure_allow_missing_block_index,
         }
     }
 }
 
-fn apply_install_options(args: &mut Vec<String>, query: &InstallQuery) {
-    if query.insecure_skip_bundle_verification.unwrap_or(false) {
-        args.push("--insecure-skip-bundle-verification".to_owned());
-    }
-    if query.insecure_allow_missing_block_index.unwrap_or(false) {
-        args.push("--insecure-allow-missing-block-index".to_owned());
-    }
-    if let Some(root_cert) = &query.root_cert {
-        args.extend(["--root-cert".to_owned(), root_cert.clone()]);
-    }
-    if let Some(bundle_hash) = &query.bundle_hash {
-        args.extend(["--bundle-hash".to_owned(), bundle_hash.clone()]);
-    }
+#[derive(Debug, Default)]
+struct SystemInstallOptions {
+    reboot: Option<String>,
+    boot_group: Option<String>,
+    keep_overlay: Option<bool>,
 }
 
-fn system_update_args(query: SystemInstallQuery, bundle: String) -> Vec<String> {
+fn apply_install_options(
+    args: &mut Vec<String>,
+    options: &InsecureInstallOptions,
+    dangerously_insecure: bool,
+) -> ApiResult<()> {
+    // Secure mode is intentionally an allowlist: it never forwards anything
+    // from `InsecureInstallOptions`. Exhaustive destructuring below means that
+    // adding a future option requires an explicit policy decision here.
+    let InsecureInstallOptions {
+        bundle_hash,
+        root_cert,
+        insecure_skip_bundle_verification,
+        insecure_allow_missing_block_index,
+    } = options;
+    let option_is_present = bundle_hash.is_some()
+        || root_cert.is_some()
+        || insecure_skip_bundle_verification.is_some()
+        || insecure_allow_missing_block_index.is_some();
+    if !dangerously_insecure && option_is_present {
+        return Err(ApiError::bad_request(
+            "dangerously-insecure-required",
+            "insecure installation options are disabled by the Rugix Admin server",
+        ));
+    }
+    if !dangerously_insecure {
+        return Ok(());
+    }
+    if insecure_skip_bundle_verification.unwrap_or(false) {
+        args.push("--insecure-skip-bundle-verification".to_owned());
+    }
+    if insecure_allow_missing_block_index.unwrap_or(false) {
+        args.push("--insecure-allow-missing-block-index".to_owned());
+    }
+    if let Some(root_cert) = root_cert {
+        args.extend(["--root-cert".to_owned(), root_cert.clone()]);
+    }
+    if let Some(bundle_hash) = bundle_hash {
+        args.extend(["--bundle-hash".to_owned(), bundle_hash.clone()]);
+    }
+    Ok(())
+}
+
+fn system_update_args(
+    query: SystemInstallQuery,
+    bundle: String,
+    dangerously_insecure: bool,
+) -> ApiResult<Vec<String>> {
+    let (insecure_options, secure_options) = query.into_parts();
     let mut args = vec!["update".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &query.common());
-    if let Some(reboot) = query.reboot {
+    apply_install_options(&mut args, &insecure_options, dangerously_insecure)?;
+    let SystemInstallOptions {
+        reboot,
+        boot_group,
+        keep_overlay,
+    } = secure_options;
+    if let Some(reboot) = reboot {
         args.extend(["--reboot".to_owned(), reboot]);
     }
-    if let Some(boot_group) = query.boot_group {
+    if let Some(boot_group) = boot_group {
         args.extend(["--boot-group".to_owned(), boot_group]);
     }
-    if query.keep_overlay.unwrap_or(false) {
+    if keep_overlay.unwrap_or(false) {
         args.push("--keep-overlay".to_owned());
     }
     args.push(bundle);
-    args
+    Ok(args)
 }
 
 fn sse_event(event: events::AdminEvent) -> Event {
@@ -424,4 +506,81 @@ fn sse_event(event: events::AdminEvent) -> Event {
         serde_json::to_string(&event)
             .assert_ok("a Sidex-generated admin event must serialize to JSON"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secure_mode_rejects_each_insecure_install_option() {
+        let queries = [
+            InsecureInstallOptions {
+                bundle_hash: Some("sha256:abc".to_owned()),
+                ..InsecureInstallOptions::default()
+            },
+            InsecureInstallOptions {
+                root_cert: Some("/tmp/attacker-root.pem".to_owned()),
+                ..InsecureInstallOptions::default()
+            },
+            InsecureInstallOptions {
+                insecure_skip_bundle_verification: Some(false),
+                ..InsecureInstallOptions::default()
+            },
+            InsecureInstallOptions {
+                insecure_allow_missing_block_index: Some(true),
+                ..InsecureInstallOptions::default()
+            },
+        ];
+
+        for query in queries {
+            let error = apply_install_options(&mut Vec::new(), &query, false).unwrap_err();
+            assert_eq!(error.code(), "dangerously-insecure-required");
+        }
+    }
+
+    #[test]
+    fn secure_mode_allows_install_without_overrides() {
+        let query = InsecureInstallOptions::default();
+        let mut args = Vec::new();
+
+        apply_install_options(&mut args, &query, false).unwrap();
+
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn dangerously_insecure_mode_forwards_all_install_options() {
+        let query = InsecureInstallOptions {
+            bundle_hash: Some("sha256:abc".to_owned()),
+            root_cert: Some("/etc/rugix/root.pem".to_owned()),
+            insecure_skip_bundle_verification: Some(true),
+            insecure_allow_missing_block_index: Some(true),
+        };
+        let mut args = Vec::new();
+
+        apply_install_options(&mut args, &query, true).unwrap();
+
+        assert_eq!(
+            args,
+            [
+                "--insecure-skip-bundle-verification",
+                "--insecure-allow-missing-block-index",
+                "--root-cert",
+                "/etc/rugix/root.pem",
+                "--bundle-hash",
+                "sha256:abc",
+            ]
+        );
+    }
+
+    #[test]
+    fn install_queries_reject_unknown_options() {
+        assert!(serde_urlencoded::from_str::<SystemInstallQuery>("futureOption=true").is_err());
+        assert!(serde_urlencoded::from_str::<AppInstallQuery>("futureOption=true").is_err());
+        assert!(serde_json::from_str::<SystemUpdateUrlRequest>(
+            r#"{"url":"https://example.com/update.rugixb","futureOption":true}"#
+        )
+        .is_err());
+    }
 }

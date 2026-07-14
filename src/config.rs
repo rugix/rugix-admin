@@ -17,6 +17,13 @@ pub const DEFAULT_ADDRESS: &str = "0.0.0.0:8088";
 pub struct Config {
     /// The address to bind to.
     pub address: Option<SocketAddr>,
+    /// Allow installation options that weaken bundle verification.
+    #[serde(
+        default,
+        rename = "dangerously-insecure",
+        alias = "dangerously_insecure"
+    )]
+    pub dangerously_insecure: bool,
 }
 
 pub fn load() -> AdminResult<Config> {
@@ -39,12 +46,16 @@ fn load_from(path: &Path) -> AdminResult<Config> {
         .field("path", path)
 }
 
-pub fn resolve_address(cli_address: Option<SocketAddr>, config: Config) -> SocketAddr {
+pub fn resolve_address(cli_address: Option<SocketAddr>, config: &Config) -> SocketAddr {
     cli_address.or(config.address).unwrap_or_else(|| {
         DEFAULT_ADDRESS
             .parse::<SocketAddr>()
             .assert_ok("the built-in Rugix Admin address must be valid")
     })
+}
+
+pub fn resolve_dangerously_insecure(cli_dangerously_insecure: bool, config: &Config) -> bool {
+    cli_dangerously_insecure || config.dangerously_insecure
 }
 
 #[cfg(test)]
@@ -56,6 +67,14 @@ mod tests {
         let config: Config = toml::from_str("address = \"127.0.0.1:9000\"").unwrap();
 
         assert_eq!(config.address, Some("127.0.0.1:9000".parse().unwrap()));
+        assert!(!config.dangerously_insecure);
+    }
+
+    #[test]
+    fn parses_dangerously_insecure() {
+        let config: Config = toml::from_str("dangerously-insecure = true").unwrap();
+
+        assert!(config.dangerously_insecure);
     }
 
     #[test]
@@ -93,10 +112,11 @@ mod tests {
     fn cli_address_overrides_config() {
         let config = Config {
             address: Some("127.0.0.1:9000".parse().unwrap()),
+            ..Config::default()
         };
 
         assert_eq!(
-            resolve_address(Some("127.0.0.1:8000".parse().unwrap()), config),
+            resolve_address(Some("127.0.0.1:8000".parse().unwrap()), &config),
             "127.0.0.1:8000".parse().unwrap()
         );
     }
@@ -105,15 +125,25 @@ mod tests {
     fn uses_config_address_before_default() {
         let config = Config {
             address: Some("127.0.0.1:9000".parse().unwrap()),
+            ..Config::default()
         };
 
         assert_eq!(
-            resolve_address(None, config),
+            resolve_address(None, &config),
             "127.0.0.1:9000".parse().unwrap()
         );
         assert_eq!(
-            resolve_address(None, Config::default()),
+            resolve_address(None, &Config::default()),
             DEFAULT_ADDRESS.parse().unwrap()
         );
+    }
+
+    #[test]
+    fn resolves_dangerously_insecure_as_an_opt_in() {
+        assert!(!resolve_dangerously_insecure(false, &Config::default()));
+        assert!(resolve_dangerously_insecure(true, &Config::default()));
+
+        let config: Config = toml::from_str("dangerously-insecure = true").unwrap();
+        assert!(resolve_dangerously_insecure(false, &config));
     }
 }

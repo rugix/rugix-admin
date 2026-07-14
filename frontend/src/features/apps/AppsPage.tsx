@@ -11,6 +11,7 @@ import { GenerationTable } from "./GenerationTable";
 
 export function AppsPage({
   apps: appSummaries,
+  dangerouslyInsecure,
   selected,
   info,
   onSelect,
@@ -18,6 +19,7 @@ export function AppsPage({
   onAction,
 }: {
   apps: api.AppSummary[];
+  dangerouslyInsecure: boolean;
   selected?: api.AppSummary;
   info?: api.AppInfoResponse;
   onSelect: (app: string) => void;
@@ -56,7 +58,7 @@ export function AppsPage({
           activeGeneration={activeGeneration}
           onAction={onAction}
         />
-        <UploadPanel title="Install App Bundle" fileLabel="App bundle" icon={<PackagePlus size={18} />} onUpload={onUpload} />
+        <UploadPanel title="Install App Bundle" fileLabel="App bundle" icon={<PackagePlus size={18} />} dangerouslyInsecure={dangerouslyInsecure} onUpload={onUpload} />
       </div>
     </div>
   );

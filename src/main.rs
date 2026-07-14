@@ -50,6 +50,9 @@ pub struct Args {
     /// The address to bind to (overrides /etc/rugix/admin.toml).
     #[clap(long)]
     pub address: Option<SocketAddr>,
+    /// Allow options that weaken bundle verification.
+    #[clap(long)]
+    pub dangerously_insecure: bool,
     #[clap(flatten)]
     logging: si_observability::clap4::LoggingArgs,
 }
@@ -57,6 +60,7 @@ pub struct Args {
 #[derive(Debug, Clone)]
 pub(crate) struct ServerState {
     jobs: JobManager,
+    dangerously_insecure: bool,
 }
 
 #[tokio::main]
@@ -64,19 +68,23 @@ async fn main() -> AdminResult<()> {
     reportify::install_pretty_panic_hook();
     let args = Args::parse();
     let config = config::load()?;
-    let address = config::resolve_address(args.address, config);
+    let address = config::resolve_address(args.address, &config);
+    let dangerously_insecure =
+        config::resolve_dangerously_insecure(args.dangerously_insecure, &config);
     let _guard = si_observability::Initializer::new("RUGIX")
         .apply(&args.logging)
         .init();
 
-    info!(%address, "starting Rugix Admin");
+    info!(%address, dangerously_insecure, "starting Rugix Admin");
 
     let state = ServerState {
         jobs: JobManager::default(),
+        dangerously_insecure,
     };
 
     let app = Router::new()
         .route("/api/health", get(handlers::health))
+        .route("/api/config", get(handlers::configuration))
         .route("/api/system/info", get(handlers::system_info))
         .route("/api/components", get(handlers::components))
         .route(
@@ -144,5 +152,13 @@ mod tests {
         let args = Args::try_parse_from(["rugix-admin"]).unwrap();
 
         assert_eq!(args.address, None);
+        assert!(!args.dangerously_insecure);
+    }
+
+    #[test]
+    fn dangerously_insecure_can_be_enabled_on_cli() {
+        let args = Args::try_parse_from(["rugix-admin", "--dangerously-insecure"]).unwrap();
+
+        assert!(args.dangerously_insecure);
     }
 }

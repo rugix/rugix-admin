@@ -89,7 +89,16 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
     try:
         admin_log = (log_dir / "rugix-admin.log").open("wb")
         admin = subprocess.Popen(
-            ["cargo", "run", "-p", "rugix-admin", "--", "--address", admin_address],
+            [
+                "cargo",
+                "run",
+                "-p",
+                "rugix-admin",
+                "--",
+                "--address",
+                admin_address,
+                "--dangerously-insecure",
+            ],
             cwd=ADMIN_ROOT,
             env=env,
             stdout=admin_log,
@@ -114,7 +123,6 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
             env={
                 **env,
                 "RUGIX_ADMIN_API_TARGET": admin_url,
-                "VITE_RUGIX_ADMIN_MARKETING": "true",
             },
             stdout=vite_log,
             stderr=subprocess.STDOUT,

@@ -39,6 +39,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const AdminApi = {
   health: () => request<api.HealthResponse>("/api/health"),
+  configuration: () => request<api.ConfigResponse>("/api/config"),
   systemInfo: () => request<api.SystemInfoResponse>("/api/system/info"),
   components: () => request<api.ComponentsCheckResponse>("/api/components"),
   apps: () => request<api.AppsListResponse>("/api/apps"),

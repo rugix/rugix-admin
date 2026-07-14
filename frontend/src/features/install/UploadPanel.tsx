@@ -13,6 +13,7 @@ export function UploadPanel({
   icon,
   system,
   allowUrl,
+  dangerouslyInsecure,
   onUpload,
   onUrlInstall,
 }: {
@@ -21,6 +22,7 @@ export function UploadPanel({
   icon: ReactNode;
   system?: boolean;
   allowUrl?: boolean;
+  dangerouslyInsecure: boolean;
   onUpload: (file: File, options: InstallOptions) => void;
   onUrlInstall?: (url: string, options: InstallOptions) => void;
 }) {
@@ -33,10 +35,10 @@ export function UploadPanel({
   const [allowMissingIndex, setAllowMissingIndex] = useState(false);
   const [reboot, setReboot] = useState<InstallOptions["reboot"]>("no");
   const options = {
-    bundleHash,
-    rootCert,
-    insecureSkipBundleVerification: insecure,
-    insecureAllowMissingBlockIndex: allowMissingIndex,
+    bundleHash: dangerouslyInsecure ? bundleHash : undefined,
+    rootCert: dangerouslyInsecure ? rootCert : undefined,
+    insecureSkipBundleVerification: dangerouslyInsecure ? insecure : undefined,
+    insecureAllowMissingBlockIndex: dangerouslyInsecure ? allowMissingIndex : undefined,
     reboot: system ? reboot : undefined,
   };
   const canInstall = source === "file" ? !!file : !!url.trim();
@@ -91,14 +93,14 @@ export function UploadPanel({
           </label>
         )}
 
-        <details className="group border-t border-divider pt-3">
+        {(system || dangerouslyInsecure) && <details className="group border-t border-divider pt-3">
           <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-foreground-muted transition hover:text-foreground">
             Advanced
             <ChevronDown size={16} className="transition group-open:rotate-180" />
           </summary>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <Input label="Bundle hash" value={bundleHash} onChange={setBundleHash} />
-            <Input label="Root certificate" value={rootCert} onChange={setRootCert} />
+            {dangerouslyInsecure && <Input label="Bundle hash" value={bundleHash} onChange={setBundleHash} />}
+            {dangerouslyInsecure && <Input label="Root certificate" value={rootCert} onChange={setRootCert} />}
             {system && (
               <label className="block md:col-span-2">
                 <span className="mb-1 block text-sm font-medium text-foreground-muted">Reboot</span>
@@ -114,16 +116,20 @@ export function UploadPanel({
                 </select>
               </label>
             )}
-            <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
-              <input className="size-4 accent-primary" type="checkbox" checked={insecure} onChange={(event) => setInsecure(event.target.checked)} />
-              Skip verification
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
-              <input className="size-4 accent-primary" type="checkbox" checked={allowMissingIndex} onChange={(event) => setAllowMissingIndex(event.target.checked)} />
-              Allow missing index
-            </label>
+            {dangerouslyInsecure && (
+              <>
+                <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
+                  <input className="size-4 accent-primary" type="checkbox" checked={insecure} onChange={(event) => setInsecure(event.target.checked)} />
+                  Skip verification
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
+                  <input className="size-4 accent-primary" type="checkbox" checked={allowMissingIndex} onChange={(event) => setAllowMissingIndex(event.target.checked)} />
+                  Allow missing index
+                </label>
+              </>
+            )}
           </div>
-        </details>
+        </details>}
 
         <div className="flex justify-end">
           <button

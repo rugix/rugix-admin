@@ -43,11 +43,19 @@ Rugix Admin optionally reads `/etc/rugix/admin.toml` at startup. For example:
 
 ```toml
 address = "127.0.0.1:8088"
+dangerously-insecure = false
 ```
 
 When the file is absent, Rugix Admin listens on `0.0.0.0:8088`. An explicit
 `--address` command-line option overrides the value in the configuration file.
 Invalid configuration prevents the service from starting.
+
+Setting `dangerously-insecure = true` enables API and frontend options that
+weaken bundle verification, including verification skips and explicit bundle
+hashes, and allows callers to override the root certificate. It can also be
+enabled with `--dangerously-insecure`. Leave it disabled for normal
+installations so that Rugix Ctrl requires properly signed bundles using the
+system's configured trust policy.
 
 The installer only adds that command-line override to the systemd service when
 `RUGIX_ADMIN_ADDRESS` is explicitly set during installation.

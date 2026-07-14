@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gate insecure installation options behind an explicit server setting exposed
+  through the API.
 - Use the upstream `reportify` crate for typed, contextual error reporting.
 - Add optional `/etc/rugix/admin.toml` configuration with support for setting
   the server bind address.
