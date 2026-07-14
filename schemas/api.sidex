@@ -33,16 +33,60 @@ record ApiError {
     details?: JsonValue,
 }
 
-/// System summary shown by Rugix Admin.
+/// System information reported by `rugix-ctrl`.
 record SystemInfoResponse {
+    /// Information about the slots.
+    slots: [string: SystemSlotInfo],
+    /// Information about the boot flow, if system updates are configured.
+    boot?: SystemBootInfo,
+    /// Information about the state-management mechanism.
+    state: SystemStateInfo,
+}
+
+/// Information about a system slot.
+record SystemSlotInfo {
+    /// Whether the slot is currently active.
+    active?: bool,
+    /// Stored hashes of the slot payload.
+    hashes?: [string: string],
+    /// Stored size of the slot payload in bytes.
+    size?: u64,
+    /// Time at which the slot was last updated.
+    updated_at?: string,
+}
+
+/// Information about the configured boot flow.
+record SystemBootInfo {
+    /// Name of the boot flow.
+    boot_flow: string,
     /// Active boot group, if known.
-    active_boot_group?: string,
+    active_group?: string,
     /// Default boot group, if known.
-    default_boot_group?: string,
-    /// State-management status, if known.
-    state_status?: string,
-    /// Raw `rugix-ctrl system info --json` output.
-    raw: JsonValue,
+    default_group?: string,
+    /// Configured boot groups.
+    groups: [string: SystemBootGroupInfo],
+}
+
+/// Information about a boot group.
+record SystemBootGroupInfo {}
+
+/// Information about the state-management mechanism.
+#[json(tag = "status")]
+variant SystemStateInfo {
+    /// State management is disabled.
+    Disabled,
+    /// State management is active.
+    Active: SystemStateActiveInfo,
+    /// State management is inactive due to an error.
+    Error,
+    /// State is temporarily stored in memory because the data partition failed to mount.
+    EphemeralFallback,
+}
+
+/// Information available while state management is active.
+record SystemStateActiveInfo {
+    /// Device backing the data partition, if any.
+    data_partition?: string,
 }
 
 /// Output of the component consistency check.

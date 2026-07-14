@@ -26,7 +26,11 @@ def test_renders_all_screens_and_saves_screenshots(
     expect(page.get_by_text("Rugix Admin")).to_be_visible()
     expect(page.get_by_text("Dangerously insecure mode enabled")).to_be_visible()
     expect(page.get_by_text("Current")).to_be_visible()
-    expect(page.get_by_text("Default")).to_be_visible()
+    expect(page.get_by_text("Default", exact=True)).to_be_visible()
+    expect(page.get_by_text("State Management")).to_be_visible()
+    expect(page.get_by_text("/dev/vda6")).to_be_visible()
+    expect(page.get_by_text("System Slots")).to_be_visible()
+    expect(page.get_by_text("512.0 MB").first).to_be_visible()
     page.screenshot(path=str(screenshot_path(request, "system")))
 
     switch_tab(page, "Components")
@@ -47,6 +51,25 @@ def test_renders_all_screens_and_saves_screenshots(
     expect(page.get_by_text("Recent Jobs")).to_be_visible()
     expect(page.get_by_text("Job Log")).to_be_visible()
     page.screenshot(path=str(screenshot_path(request, "jobs")))
+
+
+def test_system_without_boot_flow_shows_available_information(
+    page: Page, admin_server: AdminServer
+) -> None:
+    marker = admin_server.fake_dir / "no-boot-flow"
+    marker.write_text("1")
+    try:
+        page.goto(admin_server.frontend_url)
+
+        expect(page.get_by_text("not configured")).to_be_visible()
+        expect(page.get_by_text("No boot flow is configured.")).to_be_visible()
+        expect(page.get_by_text("/dev/vda6")).to_be_visible()
+        expect(page.get_by_text("system-b")).to_be_visible()
+        expect(page.get_by_role("button", name="Commit")).to_have_count(0)
+        expect(page.get_by_role("button", name="Reboot Spare")).to_have_count(0)
+        expect(page.get_by_role("button", name="Reboot", exact=True)).to_be_visible()
+    finally:
+        marker.unlink(missing_ok=True)
 
 
 def test_secure_mode_hides_insecure_warning_and_install_options(

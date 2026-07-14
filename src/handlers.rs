@@ -37,24 +37,7 @@ pub(crate) async fn configuration(State(state): State<ServerState>) -> Json<api:
 
 pub(crate) async fn system_info() -> ApiResult<Json<api::SystemInfoResponse>> {
     let raw = run_json_command(&["system", "info", "--json"]).await?;
-    let boot = raw.get("boot");
-    let response = api::SystemInfoResponse::new(raw.clone())
-        .with_active_boot_group(
-            boot.and_then(|boot| boot.get("activeGroup"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned),
-        )
-        .with_default_boot_group(
-            boot.and_then(|boot| boot.get("defaultGroup"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned),
-        )
-        .with_state_status(
-            raw.get("state")
-                .and_then(|state| state.get("status"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned),
-        );
+    let response = serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
     Ok(Json(response))
 }
 
@@ -511,6 +494,35 @@ fn sse_event(event: events::AdminEvent) -> Event {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_info_accepts_missing_boot_flow_and_all_state_details() {
+        let info = serde_json::from_value::<api::SystemInfoResponse>(serde_json::json!({
+            "slots": {
+                "system": {
+                    "active": true,
+                    "hashes": { "sha256": "abc" },
+                    "size": 42,
+                    "updatedAt": "2026-07-14T09:45:00Z"
+                }
+            },
+            "state": {
+                "status": "Active",
+                "dataPartition": "/dev/vda6"
+            }
+        }))
+        .unwrap();
+
+        assert!(info.boot.is_none());
+        assert!(matches!(info.state, api::SystemStateInfo::Active(_)));
+        assert!(
+            serde_json::from_value::<api::SystemInfoResponse>(serde_json::json!({
+                "slots": {},
+                "state": { "status": "EphemeralFallback" }
+            }))
+            .is_ok()
+        );
+    }
 
     #[test]
     fn secure_mode_rejects_each_insecure_install_option() {

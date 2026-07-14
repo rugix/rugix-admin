@@ -21,19 +21,35 @@ def main() -> int:
     record(state, "commands.jsonl", {"timestamp": now(), "args": args})
 
     if args == ["system", "info", "--json"]:
-        write_json(
-            {
-                "boot": {
-                    "bootFlow": "grub",
-                    "activeGroup": "b",
-                    "defaultGroup": "a",
-                },
-                "state": {"status": "active"},
-                "slots": {
-                    "system-a": {"bootGroup": "a", "status": "spare"},
-                    "system-b": {"bootGroup": "b", "status": "active"},
-                },
+        boot = None
+        if not (state / "no-boot-flow").exists():
+            boot = {
+                "bootFlow": "grub",
+                "activeGroup": "b",
+                "defaultGroup": "a",
+                "groups": {"a": {}, "b": {}},
             }
+        system_info = {
+            "state": {"status": "Active", "dataPartition": "/dev/vda6"},
+            "slots": {
+                "system-a": {
+                    "active": False,
+                    "hashes": {"sha256": "a" * 64},
+                    "size": 536870912,
+                    "updatedAt": "2026-07-13T08:30:00Z",
+                },
+                "system-b": {
+                    "active": True,
+                    "hashes": {"sha256": "b" * 64},
+                    "size": 536870912,
+                    "updatedAt": "2026-07-14T09:45:00Z",
+                },
+            },
+        }
+        if boot is not None:
+            system_info["boot"] = boot
+        write_json(
+            system_info
         )
         return 0
 
