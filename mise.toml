@@ -1,2 +1,100 @@
+min_version = "2026.5.12"
+
+[settings]
+lockfile = true
+
 [tools]
-"github:silitics/sidex" = { version = "0.2.6", exe = "sidex" }
+node = "22"
+pnpm = "11.9.0"
+python = "3.12"
+uv = "latest"
+"github:silitics/sidex" = { version = "latest", exe = "sidex" }
+"github:cross-rs/cross" = { version = "latest", exe = "cross", os = ["linux/x64"] }
+"github:CycloneDX/cyclonedx-rust-cargo" = { version = "latest", exe = "cargo-cyclonedx" }
+
+[env]
+RUST_BACKTRACE = "1"
+
+[tasks.codegen]
+description = "Regenerate the Sidex-generated frontend types."
+dir = "frontend"
+run = "pnpm run generate:sidex"
+
+[tasks.dev]
+description = "Run the frontend development server."
+dir = "frontend"
+run = "pnpm install --frozen-lockfile && pnpm run dev"
+
+[tasks.fmt]
+description = "Format all Rust code."
+run = "cargo fmt"
+
+[tasks.check]
+description = "Run the same formatting, lint, frontend, and unit-test checks as CI."
+depends = ["check:fmt", "check:clippy", "check:frontend", "test:unit"]
+
+[tasks."check:fmt"]
+description = "Verify that every Rust file is formatted by Rustfmt."
+run = "cargo fmt --check"
+
+[tasks."check:clippy"]
+description = "Run Clippy with warnings denied."
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks."check:frontend"]
+description = "Install locked frontend dependencies and build the frontend."
+dir = "frontend"
+run = "pnpm install --frozen-lockfile && pnpm run build"
+
+[tasks.test]
+description = "Run unit tests."
+depends = ["test:unit"]
+
+[tasks."test:unit"]
+description = "Run all Rust unit tests."
+run = "cargo test --all-features"
+
+[tasks."test:e2e"]
+description = "Run browser-driven frontend tests."
+dir = "frontend"
+run = "pnpm install --frozen-lockfile && pnpm run test:e2e"
+
+[tasks."frontend:install"]
+description = "Install locked frontend dependencies."
+dir = "frontend"
+run = "pnpm install --frozen-lockfile"
+
+[tasks."frontend:build"]
+description = "Build the frontend assets."
+dir = "frontend"
+run = "pnpm install --frozen-lockfile && pnpm run build"
+
+[tasks.build]
+description = "Build the frontend and cross-build release binaries for one or more Rust targets."
+depends = ["frontend:build"]
+run = './scripts/build-binaries.sh "$@"'
+
+[tasks."build:binaries"]
+description = "Cross-build release binaries using existing frontend assets."
+run = './scripts/build-binaries.sh "$@"'
+
+[tasks.doctor]
+description = "Check host capabilities that mise cannot install."
+run = '''
+set -euo pipefail
+
+missing=0
+for tool in git rustup cc; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "missing required host tool: $tool" >&2
+        missing=1
+    fi
+done
+
+if ! command -v podman >/dev/null 2>&1 && ! command -v docker >/dev/null 2>&1; then
+    echo "missing container runtime: install podman or docker (required for cross-builds)" >&2
+    missing=1
+fi
+
+exit "$missing"
+'''

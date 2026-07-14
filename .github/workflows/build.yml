@@ -18,27 +18,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
+      - uses: jdx/mise-action@v4
         with:
-          version: 11.9.0
-      - name: Install Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Install Sidex
-        uses: jdx/mise-action@v4
-        with:
-          install_args: "github:silitics/sidex"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Frontend Dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
+          version: 2026.7.5
+          install: false
+          cache: true
+      - name: Install Locked Tools
+        run: mise install --locked node pnpm github:silitics/sidex
       - name: Build Frontend
-        working-directory: frontend
-        run: pnpm run build
+        run: mise run --skip-tools frontend:build
       - name: Upload Frontend Dist
         uses: actions/upload-artifact@v7
         with:
@@ -73,16 +61,24 @@ jobs:
         with:
           fetch-tags: true
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: jdx/mise-action@v4
         with:
-          targets: ${{ matrix.target }}
+          version: 2026.7.5
+          install: false
+          cache: true
+      - name: Install Rust Toolchain
+        run: |
+          rustup show active-toolchain
+          rustup target add ${{ matrix.target }}
+      - name: Install Locked Tools
+        run: mise install --locked github:cross-rs/cross github:CycloneDX/cyclonedx-rust-cargo
       - name: Download Frontend Dist
         uses: actions/download-artifact@v8
         with:
           name: frontend-dist
           path: frontend/dist
       - name: Build Binary
-        run: ./scripts/build-binaries.sh ${{ matrix.target }}
+        run: mise run --skip-tools build:binaries ${{ matrix.target }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:

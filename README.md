@@ -62,41 +62,38 @@ The installer only adds that command-line override to the systemd service when
 
 ## Development
 
-Run Rugix Admin locally:
+Rugix Admin uses [mise](https://mise.jdx.dev/) for development tools and tasks.
+Tool specifications stay intentionally loose where mise can resolve them;
+`mise.lock` records the exact versions and checksums used by developers and CI.
+Rust is managed separately by rustup through `rust-toolchain.toml`, so Cargo,
+rust-analyzer, and editors use the same dated nightly without requiring mise
+activation.
+
+Install the locked toolchain and inspect the available commands:
+
+```sh
+mise install
+mise tasks
+```
+
+Common workflows are:
 
 ```sh
 cargo run -- --address 127.0.0.1:8088
+mise run dev
+mise run check
+mise run fmt
+mise run codegen
+mise run test:e2e
+mise run build x86_64-unknown-linux-musl
 ```
 
-Run the frontend development server:
+Run `mise run doctor` to check host dependencies. Development requires rustup
+and a C compiler. Cross-builds additionally require Docker or Podman.
 
-```sh
-cd frontend
-pnpm install --frozen-lockfile
-pnpm run dev
-```
-
-Build the frontend assets before creating a release binary:
-
-```sh
-cd frontend
-pnpm run build
-cd ..
-cargo build --release
-```
-
-Build release tarballs for Linux targets:
-
-```sh
-./scripts/build-binaries.sh x86_64-unknown-linux-musl
-```
-
-Run browser-driven frontend tests:
-
-```sh
-cd frontend
-pnpm run test:e2e
-```
+To deliberately update the non-Rust toolchain, update the loose specifications
+if needed and run `mise lock`; commit `mise.toml` and `mise.lock` together.
+Update Rust by changing the dated channel in `rust-toolchain.toml`.
 
 ## Licensing
 
