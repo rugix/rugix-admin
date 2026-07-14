@@ -21,6 +21,7 @@ use tracing::warn;
 use tracing::Instrument;
 
 mod assets;
+mod config;
 mod ctrl;
 mod error;
 mod handlers;
@@ -37,9 +38,9 @@ type ApiResult<T> = Result<T, ApiError>;
 
 #[derive(Debug, Clone, Parser)]
 pub struct Args {
-    /// The address to bind to.
-    #[clap(long, default_value = "0.0.0.0:8088")]
-    pub address: SocketAddr,
+    /// The address to bind to (overrides /etc/rugix/admin.toml).
+    #[clap(long)]
+    pub address: Option<SocketAddr>,
     #[clap(flatten)]
     logging: si_observability::clap4::LoggingArgs,
 }
@@ -52,11 +53,16 @@ pub(crate) struct ServerState {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+    let config = config::load().unwrap_or_else(|error| {
+        eprintln!("rugix-admin: {error}");
+        std::process::exit(1);
+    });
+    let address = config::resolve_address(args.address, config);
     let _guard = si_observability::Initializer::new("RUGIX")
         .apply(&args.logging)
         .init();
 
-    info!(address = %args.address, "starting Rugix Admin");
+    info!(%address, "starting Rugix Admin");
 
     let state = ServerState {
         jobs: JobManager::default(),
@@ -90,7 +96,7 @@ async fn main() {
         .layer(DefaultBodyLimit::disable())
         .with_state(state);
 
-    Server::bind(&args.address)
+    Server::bind(&address)
         .serve(app.into_make_service())
         .await
         .expect("failed to serve Rugix Admin");
@@ -118,4 +124,16 @@ async fn trace_request(request: Request<Body>, next: Next<Body>) -> Response {
     }
     .instrument(span)
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn address_has_no_cli_default() {
+        let args = Args::try_parse_from(["rugix-admin"]).unwrap();
+
+        assert_eq!(args.address, None);
+    }
 }

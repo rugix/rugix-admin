@@ -37,6 +37,21 @@ sudo bash installer/install-rugix-admin.sh
 
 Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a specific release. Set `RUGIX_ADMIN_GITHUB_REPO` to install from another GitHub repository.
 
+## Configuration
+
+Rugix Admin optionally reads `/etc/rugix/admin.toml` at startup. For example:
+
+```toml
+address = "127.0.0.1:8088"
+```
+
+When the file is absent, Rugix Admin listens on `0.0.0.0:8088`. An explicit
+`--address` command-line option overrides the value in the configuration file.
+Invalid configuration prevents the service from starting.
+
+The installer only adds that command-line override to the systemd service when
+`RUGIX_ADMIN_ADDRESS` is explicitly set during installation.
+
 ## Development
 
 Run Rugix Admin locally:

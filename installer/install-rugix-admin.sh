@@ -23,6 +23,7 @@ fi
 
 GITHUB_REPO="${RUGIX_ADMIN_GITHUB_REPO:-rugix/rugix-admin}"
 REQUESTED_RUGIX_ADMIN_VERSION="${1:-${RUGIX_ADMIN_VERSION:-${RUGIX_VERSION:-latest}}}"
+RUGIX_ADMIN_ADDRESS_EXPLICIT="${RUGIX_ADMIN_ADDRESS+x}"
 RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-0.0.0.0:8088}"
 RUGIX_ADMIN_PORT="${RUGIX_ADMIN_PORT:-${RUGIX_ADMIN_ADDRESS##*:}}"
 RUGIX_ADMIN_FIREWALL_ZONE="${RUGIX_ADMIN_FIREWALL_ZONE:-}"
@@ -86,13 +87,18 @@ curl -fL "${url}" -o "${archive}"
 tar -xf "${archive}" -C "${tmpdir}"
 install -m 755 "${tmpdir}/rugix-admin" /usr/bin/rugix-admin
 
+admin_exec_start="/usr/bin/rugix-admin"
+if [[ -n "${RUGIX_ADMIN_ADDRESS_EXPLICIT}" ]]; then
+    admin_exec_start+=" --address ${RUGIX_ADMIN_ADDRESS}"
+fi
+
 cat >/etc/systemd/system/rugix-admin.service <<EOF
 [Unit]
 Description=Rugix Admin
 ConditionFileIsExecutable=/usr/bin/rugix-admin
 
 [Service]
-ExecStart=/usr/bin/rugix-admin --address ${RUGIX_ADMIN_ADDRESS}
+ExecStart=${admin_exec_start}
 Restart=on-failure
 
 [Install]

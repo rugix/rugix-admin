@@ -948,6 +948,7 @@ dependencies = [
  "sidex-build-rs",
  "sidex-serde",
  "tokio",
+ "toml",
  "tracing",
  "uuid",
 ]

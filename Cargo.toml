@@ -22,6 +22,7 @@ si-observability = { version = "0.1.2", features = ["clap4"] }
 sidex = { git = "https://github.com/silitics/sidex.git" }
 sidex-serde = { git = "https://github.com/silitics/sidex.git" }
 tokio = { version = "1.29.1", features = ["full"] }
+toml = "0.5.11"
 tracing = "0.1"
 uuid = { version = "1.11.0", features = ["v4"] }
 
