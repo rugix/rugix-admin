@@ -14,6 +14,8 @@ use axum::Server;
 use clap::Parser;
 use include_dir::include_dir;
 use include_dir::Dir;
+use reportify::Report;
+use reportify::ResultExt;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
@@ -36,6 +38,13 @@ static FRONTEND: Dir<'_> = include_dir!("$OUT_DIR/frontend-dist");
 
 type ApiResult<T> = Result<T, ApiError>;
 
+reportify::new_whatever_type! {
+    /// Rugix Admin application error.
+    pub(crate) AdminError
+}
+
+type AdminResult<T> = Result<T, Report<AdminError>>;
+
 #[derive(Debug, Clone, Parser)]
 pub struct Args {
     /// The address to bind to (overrides /etc/rugix/admin.toml).
@@ -51,12 +60,10 @@ pub(crate) struct ServerState {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> AdminResult<()> {
+    reportify::install_pretty_panic_hook();
     let args = Args::parse();
-    let config = config::load().unwrap_or_else(|error| {
-        eprintln!("rugix-admin: {error}");
-        std::process::exit(1);
-    });
+    let config = config::load()?;
     let address = config::resolve_address(args.address, config);
     let _guard = si_observability::Initializer::new("RUGIX")
         .apply(&args.logging)
@@ -99,7 +106,9 @@ async fn main() {
     Server::bind(&address)
         .serve(app.into_make_service())
         .await
-        .expect("failed to serve Rugix Admin");
+        .whatever("unable to serve Rugix Admin")
+        .field_display("address", address)?;
+    Ok(())
 }
 
 async fn trace_request(request: Request<Body>, next: Next<Body>) -> Response {

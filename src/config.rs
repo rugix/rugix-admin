@@ -3,7 +3,11 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::Path;
 
+use reportify::ErrorExt;
+use reportify::ResultExt;
 use serde::Deserialize;
+
+use crate::AdminResult;
 
 pub const CONFIG_PATH: &str = "/etc/rugix/admin.toml";
 pub const DEFAULT_ADDRESS: &str = "0.0.0.0:8088";
@@ -15,35 +19,31 @@ pub struct Config {
     pub address: Option<SocketAddr>,
 }
 
-pub fn load() -> Result<Config, String> {
+pub fn load() -> AdminResult<Config> {
     load_from(Path::new(CONFIG_PATH))
 }
 
-fn load_from(path: &Path) -> Result<Config, String> {
+fn load_from(path: &Path) -> AdminResult<Config> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Config::default()),
         Err(error) => {
-            return Err(format!(
-                "unable to read configuration file {}: {error}",
-                path.display()
-            ));
+            return Err(error
+                .whatever("unable to read Rugix Admin configuration")
+                .field("path", path));
         }
     };
 
-    toml::from_str(&content).map_err(|error| {
-        format!(
-            "unable to parse configuration file {}: {error}",
-            path.display()
-        )
-    })
+    toml::from_str(&content)
+        .whatever("unable to parse Rugix Admin configuration")
+        .field("path", path)
 }
 
 pub fn resolve_address(cli_address: Option<SocketAddr>, config: Config) -> SocketAddr {
     cli_address.or(config.address).unwrap_or_else(|| {
         DEFAULT_ADDRESS
-            .parse()
-            .expect("default address must be valid")
+            .parse::<SocketAddr>()
+            .assert_ok("the built-in Rugix Admin address must be valid")
     })
 }
 
@@ -63,6 +63,23 @@ mod tests {
         let error = toml::from_str::<Config>("adress = \"127.0.0.1:9000\"").unwrap_err();
 
         assert!(error.to_string().contains("unknown field"));
+    }
+
+    #[test]
+    fn invalid_file_retains_path_and_parse_cause() {
+        let path = std::env::temp_dir().join(format!(
+            "rugix-admin-config-test-{}.toml",
+            uuid::Uuid::new_v4()
+        ));
+        fs::write(&path, "address = false").unwrap();
+
+        let error = load_from(&path).unwrap_err();
+        let rendered = error.to_string();
+        fs::remove_file(&path).unwrap();
+
+        assert!(error.context().cause().is_some());
+        assert!(rendered.contains("unable to parse Rugix Admin configuration"));
+        assert!(rendered.contains(&path.display().to_string()));
     }
 
     #[test]

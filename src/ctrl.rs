@@ -2,6 +2,8 @@ use std::process::Stdio;
 
 use axum::extract::multipart::Field;
 use axum::extract::Multipart;
+use reportify::Report;
+use reportify::ResultExt;
 use serde_json::Value;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncRead;
@@ -20,6 +22,13 @@ use crate::error::ApiError;
 use crate::generated::jobs;
 use crate::jobs::JobManager;
 use crate::ApiResult;
+
+reportify::new_whatever_type! {
+    /// Multipart upload processing error.
+    UploadError
+}
+
+type UploadResult<T> = Result<T, Report<UploadError>>;
 
 #[derive(Debug, Clone)]
 pub(crate) struct CommandSpec {
@@ -46,18 +55,9 @@ pub(crate) async fn run_json_command(args: &[&str]) -> ApiResult<Value> {
         .args(args)
         .output()
         .await
-        .map_err(|err| {
-            error!(args = ?args, error = %err, "unable to spawn rugix-ctrl");
-            ApiError::command_spawn("rugix-ctrl", err)
-        })?;
+        .map_err(|err| ApiError::command_spawn("rugix-ctrl", err))?;
 
     if !output.status.success() {
-        warn!(
-            args = ?args,
-            status = %output.status,
-            stderr = %String::from_utf8_lossy(&output.stderr),
-            "rugix-ctrl command failed"
-        );
         return Err(ApiError::command_failed("rugix-ctrl", args, &output));
     }
 
@@ -76,10 +76,7 @@ pub(crate) async fn run_components_check_command() -> ApiResult<Value> {
         .args(args)
         .output()
         .await
-        .map_err(|err| {
-            error!(args = ?args, error = %err, "unable to spawn rugix-ctrl");
-            ApiError::command_spawn("rugix-ctrl", err)
-        })?;
+        .map_err(|err| ApiError::command_spawn("rugix-ctrl", err))?;
 
     match output.status.code() {
         Some(0 | 1) => {
@@ -91,15 +88,7 @@ pub(crate) async fn run_components_check_command() -> ApiResult<Value> {
             );
             serde_json::from_slice(&output.stdout).map_err(ApiError::invalid_ctrl_output)
         }
-        _ => {
-            warn!(
-                args = ?args,
-                status = %output.status,
-                stderr = %String::from_utf8_lossy(&output.stderr),
-                "rugix-ctrl components check failed"
-            );
-            Err(ApiError::command_failed("rugix-ctrl", &args, &output))
-        }
+        _ => Err(ApiError::command_failed("rugix-ctrl", &args, &output)),
     }
 }
 
@@ -427,21 +416,25 @@ async fn drain_upload_after_failure(job_id: &str, multipart: &mut Multipart) {
     }
 }
 
-async fn drain_multipart(multipart: &mut Multipart) -> Result<u64, String> {
+async fn drain_multipart(multipart: &mut Multipart) -> UploadResult<u64> {
     let mut bytes = 0u64;
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|err| err.to_string())?
+        .whatever("unable to read multipart field")?
     {
         bytes += drain_field(&mut field).await?;
     }
     Ok(bytes)
 }
 
-async fn drain_field(field: &mut Field<'_>) -> Result<u64, String> {
+async fn drain_field(field: &mut Field<'_>) -> UploadResult<u64> {
     let mut bytes = 0u64;
-    while let Some(chunk) = field.chunk().await.map_err(|err| err.to_string())? {
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .whatever("unable to read multipart field data")?
+    {
         bytes += chunk.len() as u64;
     }
     Ok(bytes)

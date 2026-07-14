@@ -10,6 +10,7 @@ use axum::response::sse::Sse;
 use axum::Json;
 use futures::Stream;
 use indexmap::IndexMap;
+use reportify::ResultExt;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::broadcast;
@@ -419,7 +420,8 @@ fn sse_event(event: events::AdminEvent) -> Event {
         events::AdminEvent::UploadProgress(_) => "upload-progress",
         events::AdminEvent::InstallProgress(_) => "install-progress",
     };
-    Event::default()
-        .event(event_name)
-        .data(serde_json::to_string(&event).expect("admin event should serialize"))
+    Event::default().event(event_name).data(
+        serde_json::to_string(&event)
+            .assert_ok("a Sidex-generated admin event must serialize to JSON"),
+    )
 }
