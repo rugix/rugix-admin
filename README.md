@@ -39,17 +39,17 @@ sudo bash installer/install-rugix-admin.sh
 Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a specific release. Set `RUGIX_ADMIN_GITHUB_REPO` to install from another GitHub repository.
 
 The service listens on all interfaces by default. Open
-`http://<device-address>:8088/`.
+`http://<device-address>:7492/`.
 
 ## Configuration
 
 Rugix Admin optionally reads `/etc/rugix/admin.toml` at startup. For example:
 
 ```toml
-address = "0.0.0.0:8088"
+address = "0.0.0.0:7492"
 ```
 
-When the file is absent, Rugix Admin listens on `0.0.0.0:8088`. An explicit
+When the file is absent, Rugix Admin listens on `0.0.0.0:7492`. An explicit
 `--address` command-line option overrides the value in the configuration file.
 Invalid configuration prevents the service from starting.
 
@@ -99,7 +99,7 @@ mise tasks
 Common workflows are:
 
 ```sh
-cargo run -- --address 127.0.0.1:8088
+cargo run -- --address 127.0.0.1:7492
 mise run dev
 mise run check
 mise run fmt

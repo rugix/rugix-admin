@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::AdminResult;
 
 pub const CONFIG_PATH: &str = "/etc/rugix/admin.toml";
-pub const DEFAULT_ADDRESS: &str = "0.0.0.0:8088";
+pub const DEFAULT_ADDRESS: &str = "0.0.0.0:7492";
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
