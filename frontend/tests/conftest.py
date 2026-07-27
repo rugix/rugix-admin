@@ -15,7 +15,6 @@ from urllib.request import urlopen
 
 import pytest
 
-
 TESTS_ROOT = Path(__file__).resolve().parent
 FRONTEND_ROOT = TESTS_ROOT.parent
 ADMIN_ROOT = FRONTEND_ROOT.parent
@@ -97,7 +96,6 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
                 "--",
                 "--address",
                 admin_address,
-                "--dangerously-insecure",
             ],
             cwd=ADMIN_ROOT,
             env=env,
@@ -168,9 +166,7 @@ def wait_for_command(fake_dir: Path, args: list[str], timeout: float = 10) -> di
 
 def screenshot_path(request: pytest.FixtureRequest, name: str) -> Path:
     safe_name = (
-        request.node.nodeid.replace("::", "--")
-        .replace("/", "--")
-        .replace("\\", "--")
+        request.node.nodeid.replace("::", "--").replace("/", "--").replace("\\", "--")
     )
     path = TESTS_ROOT / "test-results" / safe_name / "screens" / f"{name}.png"
     path.parent.mkdir(parents=True, exist_ok=True)

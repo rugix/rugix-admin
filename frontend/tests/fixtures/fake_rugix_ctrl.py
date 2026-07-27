@@ -20,6 +20,20 @@ def main() -> int:
     args = sys.argv[1:]
     record(state, "commands.jsonl", {"timestamp": now(), "args": args})
 
+    if args == ["daemon", "info", "--json"]:
+        write_json(
+            {
+                "dangerouslyInsecure": True,
+                "features": {
+                    "factoryReset": True,
+                    "systemCommit": True,
+                    "systemReboot": True,
+                    "appLifecycle": True,
+                },
+            }
+        )
+        return 0
+
     if args == ["system", "info", "--json"]:
         boot = None
         if not (state / "no-boot-flow").exists():
@@ -48,9 +62,7 @@ def main() -> int:
         }
         if boot is not None:
             system_info["boot"] = boot
-        write_json(
-            system_info
-        )
+        write_json(system_info)
         return 0
 
     if args == ["components", "check"]:
@@ -84,7 +96,10 @@ def main() -> int:
                     "metadata": {"label": "MQTT Broker"},
                 },
                 "opc-ua-adapter": {
-                    "status": {"state": "unhealthy", "message": "OPC UA endpoint health check failed"},
+                    "status": {
+                        "state": "unhealthy",
+                        "message": "OPC UA endpoint health check failed",
+                    },
                     "generation": 4,
                     "metadata": {"label": "OPC UA Adapter"},
                 },
@@ -479,7 +494,10 @@ def app_info(name: str) -> dict:
     unhealthy_apps = {"opc-ua-adapter"}
     active_generation = app_generations.get(name, 1)
     if name in unhealthy_apps:
-        status = {"state": "unhealthy", "message": "OPC UA endpoint health check failed"}
+        status = {
+            "state": "unhealthy",
+            "message": "OPC UA endpoint health check failed",
+        }
     elif name in stopped_apps:
         status = {"state": "stopped"}
     else:
@@ -519,17 +537,18 @@ def app_info(name: str) -> dict:
 
 
 def is_url_update_command(args: list[str]) -> bool:
-    return bool(args and args[0:2] == ["update", "install"] and args[-1].startswith(("http://", "https://")))
+    return bool(
+        args
+        and args[0:2] == ["update", "install"]
+        and args[-1].startswith(("http://", "https://"))
+    )
 
 
 def is_upload_command(args: list[str]) -> bool:
     return bool(
         args
         and args[-1] == "-"
-        and (
-            args[:2] == ["update", "install"]
-            or args[:2] == ["apps", "install"]
-        )
+        and (args[:2] == ["update", "install"] or args[:2] == ["apps", "install"])
     )
 
 

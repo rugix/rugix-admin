@@ -31,11 +31,10 @@ pub(crate) async fn health() -> Json<api::HealthResponse> {
     Json(api::HealthResponse::new("ok".to_owned()))
 }
 
-pub(crate) async fn configuration(State(state): State<ServerState>) -> Json<api::ConfigResponse> {
-    Json(api::ConfigResponse::new(
-        state.dangerously_insecure,
-        state.remote_access,
-    ))
+pub(crate) async fn daemon_info() -> ApiResult<Json<api::DaemonInfoResponse>> {
+    let raw = run_json_command(&["daemon", "info", "--json"]).await?;
+    let response = serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
+    Ok(Json(response))
 }
 
 pub(crate) async fn system_info() -> ApiResult<Json<api::SystemInfoResponse>> {
@@ -56,7 +55,7 @@ pub(crate) async fn upload_system_update(
     Query(query): Query<SystemInstallQuery>,
     multipart: Multipart,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let args = system_update_args(query, "-".to_owned(), state.dangerously_insecure)?;
+    let args = system_update_args(query, "-".to_owned());
 
     state
         .jobs
@@ -77,11 +76,7 @@ pub(crate) async fn install_system_update_from_url(
     Query(query): Query<SystemInstallQuery>,
     Json(request): Json<SystemUpdateUrlRequest>,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let args = system_update_args(
-        query,
-        request.url.trim().to_owned(),
-        state.dangerously_insecure,
-    )?;
+    let args = system_update_args(query, request.url.trim().to_owned());
     let url = request.url.trim();
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err(ApiError::bad_request(
@@ -185,11 +180,7 @@ pub(crate) async fn upload_app_bundle(
     multipart: Multipart,
 ) -> ApiResult<Json<api::JobResponse>> {
     let mut args = vec!["apps".to_owned(), "install".to_owned()];
-    apply_install_options(
-        &mut args,
-        &query.into_insecure_options(),
-        state.dangerously_insecure,
-    )?;
+    apply_install_options(&mut args, &query.into_insecure_options());
     args.push("-".to_owned());
 
     state
@@ -413,33 +404,13 @@ struct SystemInstallOptions {
     keep_overlay: Option<bool>,
 }
 
-fn apply_install_options(
-    args: &mut Vec<String>,
-    options: &InsecureInstallOptions,
-    dangerously_insecure: bool,
-) -> ApiResult<()> {
-    // Secure mode is intentionally an allowlist: it never forwards anything
-    // from `InsecureInstallOptions`. Exhaustive destructuring below means that
-    // adding a future option requires an explicit policy decision here.
+fn apply_install_options(args: &mut Vec<String>, options: &InsecureInstallOptions) {
     let InsecureInstallOptions {
         bundle_hash,
         root_cert,
         insecure_skip_bundle_verification,
         insecure_allow_missing_block_index,
     } = options;
-    let option_is_present = bundle_hash.is_some()
-        || root_cert.is_some()
-        || insecure_skip_bundle_verification.is_some()
-        || insecure_allow_missing_block_index.is_some();
-    if !dangerously_insecure && option_is_present {
-        return Err(ApiError::bad_request(
-            "dangerously-insecure-required",
-            "insecure installation options are disabled by the Rugix Admin server",
-        ));
-    }
-    if !dangerously_insecure {
-        return Ok(());
-    }
     if insecure_skip_bundle_verification.unwrap_or(false) {
         args.push("--insecure-skip-bundle-verification".to_owned());
     }
@@ -452,17 +423,12 @@ fn apply_install_options(
     if let Some(bundle_hash) = bundle_hash {
         args.extend(["--bundle-hash".to_owned(), bundle_hash.clone()]);
     }
-    Ok(())
 }
 
-fn system_update_args(
-    query: SystemInstallQuery,
-    bundle: String,
-    dangerously_insecure: bool,
-) -> ApiResult<Vec<String>> {
+fn system_update_args(query: SystemInstallQuery, bundle: String) -> Vec<String> {
     let (insecure_options, secure_options) = query.into_parts();
     let mut args = vec!["update".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &insecure_options, dangerously_insecure)?;
+    apply_install_options(&mut args, &insecure_options);
     let SystemInstallOptions {
         reboot,
         boot_group,
@@ -478,7 +444,7 @@ fn system_update_args(
         args.push("--keep-overlay".to_owned());
     }
     args.push(bundle);
-    Ok(args)
+    args
 }
 
 fn sse_event(event: events::AdminEvent) -> Event {
@@ -528,44 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn secure_mode_rejects_each_insecure_install_option() {
-        let queries = [
-            InsecureInstallOptions {
-                bundle_hash: Some("sha256:abc".to_owned()),
-                ..InsecureInstallOptions::default()
-            },
-            InsecureInstallOptions {
-                root_cert: Some("/tmp/attacker-root.pem".to_owned()),
-                ..InsecureInstallOptions::default()
-            },
-            InsecureInstallOptions {
-                insecure_skip_bundle_verification: Some(false),
-                ..InsecureInstallOptions::default()
-            },
-            InsecureInstallOptions {
-                insecure_allow_missing_block_index: Some(true),
-                ..InsecureInstallOptions::default()
-            },
-        ];
-
-        for query in queries {
-            let error = apply_install_options(&mut Vec::new(), &query, false).unwrap_err();
-            assert_eq!(error.code(), "dangerously-insecure-required");
-        }
-    }
-
-    #[test]
-    fn secure_mode_allows_install_without_overrides() {
-        let query = InsecureInstallOptions::default();
-        let mut args = Vec::new();
-
-        apply_install_options(&mut args, &query, false).unwrap();
-
-        assert!(args.is_empty());
-    }
-
-    #[test]
-    fn dangerously_insecure_mode_forwards_all_install_options() {
+    fn forwards_install_options_for_daemon_authorization() {
         let query = InsecureInstallOptions {
             bundle_hash: Some("sha256:abc".to_owned()),
             root_cert: Some("/etc/rugix/root.pem".to_owned()),
@@ -574,7 +503,7 @@ mod tests {
         };
         let mut args = Vec::new();
 
-        apply_install_options(&mut args, &query, true).unwrap();
+        apply_install_options(&mut args, &query);
 
         assert_eq!(
             args,

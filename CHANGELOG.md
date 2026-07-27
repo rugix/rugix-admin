@@ -4,8 +4,8 @@
 
 - Move Rugix Admin into its own repository with a standalone installer and
   release pipeline.
-- Gate insecure installation options behind an explicit server setting exposed
-  through the API.
+- Reflect the privileged daemon's effective feature and installation security
+  policy in the API and frontend.
 - Use the upstream `reportify` crate for typed, contextual error reporting.
 - Add optional `/etc/rugix/admin.toml` configuration with support for setting
   the server bind address.
@@ -21,8 +21,8 @@
   report presentation.
 - Refresh Rust and frontend dependencies to resolve known `crossbeam-epoch` and
   PostCSS advisories.
-- Limit Rugix Admin to explicit development and demo use: bind to loopback by
-  default, require an insecure opt-in for remote access, stop opening firewall
-  ports during installation, and display the security limitation in the UI.
+- Listen on public interfaces by default and display a red development-only
+  warning when the privileged daemon permits bypassing Rugix Ctrl's security
+  checks.
 - Run the installed HTTP service as an unprivileged user and route its Rugix Ctrl
   commands through the privileged operation daemon.

@@ -12,6 +12,7 @@ import { GenerationTable } from "./GenerationTable";
 export function AppsPage({
   apps: appSummaries,
   dangerouslyInsecure,
+  appLifecycleEnabled,
   selected,
   info,
   onSelect,
@@ -20,6 +21,7 @@ export function AppsPage({
 }: {
   apps: api.AppSummary[];
   dangerouslyInsecure: boolean;
+  appLifecycleEnabled: boolean;
   selected?: api.AppSummary;
   info?: api.AppInfoResponse;
   onSelect: (app: string) => void;
@@ -44,7 +46,14 @@ export function AppsPage({
           bodyClassName="p-0"
         >
           {info ? (
-            <GenerationTable generations={orderedGenerations} onActivate={(generation) => onAction("activate", { generation })} />
+            <GenerationTable
+              generations={orderedGenerations}
+              onActivate={
+                appLifecycleEnabled
+                  ? (generation) => onAction("activate", { generation })
+                  : undefined
+              }
+            />
           ) : (
             <EmptyState label="Select an app." />
           )}
@@ -56,6 +65,7 @@ export function AppsPage({
           app={selected}
           info={info}
           activeGeneration={activeGeneration}
+          lifecycleEnabled={appLifecycleEnabled}
           onAction={onAction}
         />
         <UploadPanel title="Install App Bundle" fileLabel="App bundle" icon={<PackagePlus size={18} />} dangerouslyInsecure={dangerouslyInsecure} onUpload={onUpload} />

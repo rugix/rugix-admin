@@ -24,9 +24,8 @@ fi
 GITHUB_REPO="${RUGIX_ADMIN_GITHUB_REPO:-rugix/rugix-admin}"
 REQUESTED_RUGIX_ADMIN_VERSION="${1:-${RUGIX_ADMIN_VERSION:-${RUGIX_VERSION:-latest}}}"
 RUGIX_ADMIN_ADDRESS_EXPLICIT="${RUGIX_ADMIN_ADDRESS+x}"
-RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-127.0.0.1:8088}"
+RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-0.0.0.0:8088}"
 RUGIX_ADMIN_PORT="${RUGIX_ADMIN_PORT:-${RUGIX_ADMIN_ADDRESS##*:}}"
-RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS="${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS:-false}"
 
 case "$(uname -m)" in
     x86_64|amd64) RUGIX_TARGET="x86_64-unknown-linux-musl" ;;
@@ -46,19 +45,6 @@ if ! [[ "${RUGIX_ADMIN_ADDRESS}" =~ ^[][0-9A-Fa-f.:]+$ ]]; then
     echo "invalid Rugix Admin address: ${RUGIX_ADMIN_ADDRESS}" >&2
     exit 1
 fi
-
-case "${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS,,}" in
-    1|true|yes)
-        RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS=true
-        ;;
-    0|false|no)
-        RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS=false
-        ;;
-    *)
-        echo "invalid RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS value: ${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS}" >&2
-        exit 1
-        ;;
-esac
 
 apt-get update
 apt-get install -y ca-certificates curl jq tar
@@ -129,9 +115,6 @@ admin_exec_start="/usr/bin/rugix-admin"
 if [[ -n "${RUGIX_ADMIN_ADDRESS_EXPLICIT}" ]]; then
     admin_exec_start+=" --address ${RUGIX_ADMIN_ADDRESS}"
 fi
-if [[ "${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS}" == true ]]; then
-    admin_exec_start+=" --insecure-allow-remote-access"
-fi
 
 cat >/etc/systemd/system/rugix-ctrl-daemon.service <<'EOF'
 [Unit]
@@ -153,7 +136,7 @@ EOF
 
 cat >/etc/systemd/system/rugix-admin.service <<EOF
 [Unit]
-Description=Rugix Admin (Development and Demo Use Only)
+Description=Rugix Admin
 ConditionFileIsExecutable=/usr/bin/rugix-admin
 After=rugix-ctrl-daemon.service
 Requires=rugix-ctrl-daemon.service
@@ -174,14 +157,9 @@ systemctl enable rugix-ctrl-daemon.service rugix-admin.service
 systemctl restart rugix-ctrl-daemon.service
 systemctl restart rugix-admin.service
 
-if [[ "${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS}" == true ]]; then
-    cat <<EOF
+cat <<EOF
 
 Rugix Admin is installed and listening on ${RUGIX_ADMIN_ADDRESS}.
-
-WARNING: Rugix Admin has no authentication. Anyone who can reach this address
-can request the privileged operations enabled in /etc/rugix/daemon.toml. Use it
-only for development and demos on a trusted network.
 
 Next steps:
   Open Rugix Admin:
@@ -193,21 +171,3 @@ Next steps:
   Follow logs:
     journalctl -u rugix-admin.service -f
 EOF
-else
-    cat <<EOF
-
-Rugix Admin is installed for local development and demo use.
-
-Open an SSH tunnel:
-  ssh -L ${RUGIX_ADMIN_PORT}:127.0.0.1:${RUGIX_ADMIN_PORT} root@<device-address>
-
-Then open:
-  http://127.0.0.1:${RUGIX_ADMIN_PORT}/
-
-Check the service:
-  systemctl status rugix-admin.service
-
-Follow logs:
-  journalctl -u rugix-admin.service -f
-EOF
-fi

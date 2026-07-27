@@ -49,11 +49,6 @@ impl ApiError {
         Self(Report::new(error))
     }
 
-    #[cfg(test)]
-    pub(crate) fn code(&self) -> &'static str {
-        self.0.error().code
-    }
-
     pub(crate) fn bad_request(code: &'static str, message: impl Into<String>) -> Self {
         Self::from_data(Self::data(StatusCode::BAD_REQUEST, code, message))
     }

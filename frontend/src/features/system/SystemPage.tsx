@@ -24,12 +24,14 @@ import { StatusCell } from "./StatusCell";
 export function SystemPage({
   system,
   dangerouslyInsecure,
+  features,
   onAction,
   onUpload,
   onUrlInstall,
 }: {
   system?: api.SystemInfoResponse;
   dangerouslyInsecure: boolean;
+  features?: api.DaemonFeatures;
   onAction: (action: string) => void;
   onUpload: (file: File, options: InstallOptions) => void;
   onUrlInstall: (url: string, options: InstallOptions) => void;
@@ -38,6 +40,9 @@ export function SystemPage({
   const slots = Object.entries(system?.slots ?? {}).filter(
     (entry): entry is [string, api.SystemSlotInfo] => entry[1] !== undefined,
   );
+  const hasBootActions = (features?.systemCommit === true && boot !== undefined) ||
+    features?.systemReboot === true;
+  const hasSystemActions = hasBootActions || features?.factoryReset === true;
 
   return (
     <div className="space-y-5">
@@ -60,6 +65,7 @@ export function SystemPage({
               system
               allowUrl
               dangerouslyInsecure={dangerouslyInsecure}
+              systemRebootEnabled={features?.systemReboot === true}
               onUpload={onUpload}
               onUrlInstall={onUrlInstall}
             />
@@ -78,34 +84,42 @@ export function SystemPage({
           <StatePanel state={system?.state} />
           <BootGroups boot={boot} />
 
-          <Surface title="System Actions">
-            <div className="space-y-4">
-              <ActionGroup title="Boot">
-                {boot && (
-                  <button className={buttonClass} onClick={() => onAction("commit")}>
-                    <Check size={16} /> Commit
-                  </button>
+          {hasSystemActions && (
+            <Surface title="System Actions">
+              <div className="space-y-4">
+                {hasBootActions && (
+                  <ActionGroup title="Boot">
+                    {boot && features?.systemCommit && (
+                      <button className={buttonClass} onClick={() => onAction("commit")}>
+                        <Check size={16} /> Commit
+                      </button>
+                    )}
+                    {features?.systemReboot && (
+                      <button className={buttonClass} onClick={() => onAction("reboot")}>
+                        <Power size={16} /> Reboot
+                      </button>
+                    )}
+                    {boot && features?.systemReboot && (
+                      <button className={buttonClass} onClick={() => onAction("reboot-spare")}>
+                        <RotateCcw size={16} /> Reboot Spare
+                      </button>
+                    )}
+                  </ActionGroup>
                 )}
-                <button className={buttonClass} onClick={() => onAction("reboot")}>
-                  <Power size={16} /> Reboot
-                </button>
-                {boot && (
-                  <button className={buttonClass} onClick={() => onAction("reboot-spare")}>
-                    <RotateCcw size={16} /> Reboot Spare
-                  </button>
-                )}
-              </ActionGroup>
 
-              <ActionGroup title="Recovery">
-                <button
-                  className={dangerButtonClass}
-                  onClick={() => confirmAction("Factory reset?") && onAction("factory-reset")}
-                >
-                  <Trash2 size={16} /> Factory Reset
-                </button>
-              </ActionGroup>
-            </div>
-          </Surface>
+                {features?.factoryReset && (
+                  <ActionGroup title="Recovery">
+                    <button
+                      className={dangerButtonClass}
+                      onClick={() => confirmAction("Factory reset?") && onAction("factory-reset")}
+                    >
+                      <Trash2 size={16} /> Factory Reset
+                    </button>
+                  </ActionGroup>
+                )}
+              </div>
+            </Surface>
+          )}
         </div>
       </div>
     </div>

@@ -11,12 +11,24 @@ record HealthResponse {
     status: string,
 }
 
-/// Public Rugix Admin server configuration.
-record ConfigResponse {
-    /// Whether explicitly insecure installation options are enabled.
+/// Effective privileged daemon policy used by Rugix Admin.
+record DaemonInfoResponse {
+    /// Whether the daemon permits bypassing verification and compatibility checks.
     dangerously_insecure: bool,
-    /// Whether the service is listening on a non-loopback address.
-    remote_access: bool,
+    /// Additional privileged operation families exposed by the daemon.
+    features: DaemonFeatures,
+}
+
+/// Effective state of the daemon's optional privileged operation families.
+record DaemonFeatures {
+    /// Whether factory resets are enabled.
+    factory_reset: bool,
+    /// Whether committing the active system is enabled.
+    system_commit: bool,
+    /// Whether explicit system reboots are enabled.
+    system_reboot: bool,
+    /// Whether application lifecycle management is enabled.
+    app_lifecycle: bool,
 }
 
 /// Error response body.

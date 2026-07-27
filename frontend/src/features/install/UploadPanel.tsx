@@ -14,6 +14,7 @@ export function UploadPanel({
   system,
   allowUrl,
   dangerouslyInsecure,
+  systemRebootEnabled,
   onUpload,
   onUrlInstall,
 }: {
@@ -23,6 +24,7 @@ export function UploadPanel({
   system?: boolean;
   allowUrl?: boolean;
   dangerouslyInsecure: boolean;
+  systemRebootEnabled?: boolean;
   onUpload: (file: File, options: InstallOptions) => void;
   onUrlInstall?: (url: string, options: InstallOptions) => void;
 }) {
@@ -110,9 +112,9 @@ export function UploadPanel({
                   onChange={(event) => setReboot(event.target.value as InstallOptions["reboot"])}
                 >
                   <option value="no">No</option>
-                  <option value="yes">Yes</option>
                   <option value="set">Set</option>
-                  <option value="deferred">Deferred</option>
+                  {systemRebootEnabled && <option value="yes">Yes</option>}
+                  {systemRebootEnabled && <option value="deferred">Deferred</option>}
                 </select>
               </label>
             )}

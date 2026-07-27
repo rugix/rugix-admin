@@ -13,11 +13,13 @@ export function AppDetailPanel({
   app,
   info,
   activeGeneration,
+  lifecycleEnabled,
   onAction,
 }: {
   app?: api.AppSummary;
   info?: api.AppInfoResponse;
   activeGeneration?: api.AppGeneration;
+  lifecycleEnabled: boolean;
   onAction: (action: string, query?: Record<string, string | number | undefined>) => void;
 }) {
   const isWorkloadRunning = info?.status.state === "running" || info?.status.state === "unhealthy";
@@ -37,29 +39,36 @@ export function AppDetailPanel({
             <MiniMetric label="Generations" value={String(info.generations.length)} valueClassName="font-mono tabular-nums" />
           </div>
 
-          <ActionGroup title="Workload">
-            {isWorkloadRunning ? (
-              <button className={buttonClass} onClick={() => onAction("stop")}>
-                <Square size={16} /> Stop
-              </button>
-            ) : (
-              <button className={buttonClass} onClick={() => onAction("start")}>
-                <Play size={16} /> Start
-              </button>
-            )}
-          </ActionGroup>
+          {lifecycleEnabled && (
+            <>
+              <ActionGroup title="Workload">
+                {isWorkloadRunning ? (
+                  <button className={buttonClass} onClick={() => onAction("stop")}>
+                    <Square size={16} /> Stop
+                  </button>
+                ) : (
+                  <button className={buttonClass} onClick={() => onAction("start")}>
+                    <Play size={16} /> Start
+                  </button>
+                )}
+              </ActionGroup>
 
-          <ActionGroup title="Generation">
-            <button className={buttonClass} onClick={() => onAction("rollback")}>
-              <RotateCcw size={16} /> Rollback
-            </button>
-            <button className={buttonClass} onClick={() => onAction("gc", { keep: 1 })}>
-              <Trash2 size={16} /> GC
-            </button>
-            <button className={dangerButtonClass} onClick={() => confirmAction(`Remove ${info.name}?`) && onAction("remove")}>
-              <Trash2 size={16} /> Remove
-            </button>
-          </ActionGroup>
+              <ActionGroup title="Generation">
+                <button className={buttonClass} onClick={() => onAction("rollback")}>
+                  <RotateCcw size={16} /> Rollback
+                </button>
+                <button className={buttonClass} onClick={() => onAction("gc", { keep: 1 })}>
+                  <Trash2 size={16} /> GC
+                </button>
+                <button
+                  className={dangerButtonClass}
+                  onClick={() => confirmAction(`Remove ${info.name}?`) && onAction("remove")}
+                >
+                  <Trash2 size={16} /> Remove
+                </button>
+              </ActionGroup>
+            </>
+          )}
         </div>
       ) : (
         <EmptyState label="Select an app." />

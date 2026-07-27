@@ -10,7 +10,7 @@ export function GenerationTable({
   onActivate,
 }: {
   generations: api.AppGeneration[];
-  onActivate: (generation: number) => void;
+  onActivate?: (generation: number) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -21,7 +21,7 @@ export function GenerationTable({
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Created</th>
             <th className="px-4 py-3">Last Active</th>
-            <th className="px-4 py-3"></th>
+            {onActivate && <th className="px-4 py-3"></th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-divider">
@@ -35,13 +35,18 @@ export function GenerationTable({
               <td className="px-4 py-3 text-foreground-muted">
                 {generation.lastActivated ? compactTime(generation.lastActivated) : "never"}
               </td>
-              <td className="px-4 py-3 text-right">
-                {!generation.active && generation.complete && (
-                  <button className={buttonClass} onClick={() => onActivate(Number(generation.number))}>
-                    <Play size={16} /> Activate
-                  </button>
-                )}
-              </td>
+              {onActivate && (
+                <td className="px-4 py-3 text-right">
+                  {!generation.active && generation.complete && (
+                    <button
+                      className={buttonClass}
+                      onClick={() => onActivate(Number(generation.number))}
+                    >
+                      <Play size={16} /> Activate
+                    </button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
