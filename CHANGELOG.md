@@ -24,5 +24,5 @@
 - Listen on `0.0.0.0:7492` by default and display a red development-only
   warning when the privileged daemon permits bypassing Rugix Ctrl's security
   checks.
-- Run the installed HTTP service as an unprivileged user and route its Rugix Ctrl
-  commands through the privileged operation daemon.
+- Run the installed HTTP service as a dynamic unprivileged user and route its
+  Rugix Ctrl commands through the group-restricted privileged operation daemon.

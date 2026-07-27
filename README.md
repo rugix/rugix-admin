@@ -59,12 +59,12 @@ not add firewall rules.
 
 ## Security Model
 
-The installer runs Rugix Admin as a dedicated unprivileged user. Its
-`rugix-ctrl` subprocesses connect to the privileged Rugix Ctrl daemon over a
-group-restricted Unix socket. `/etc/rugix/daemon.toml` determines whether the
-service may reset state, commit or reboot the system, or manage application
-lifecycle state. The installer creates this file when it is absent and preserves
-an existing configuration.
+The installer runs Rugix Admin as a dynamic unprivileged user. Its `rugix-ctrl`
+subprocesses connect to the privileged Rugix Ctrl daemon over a Unix socket
+restricted to the `rugix-daemon` system group. `/etc/rugix/daemon.toml`
+determines whether the service may reset state, commit or reboot the system, or
+manage application lifecycle state. The installer creates this file when it is
+absent and preserves an existing configuration.
 
 Rugix Admin queries the daemon's effective policy and displays only operations
 that the daemon has enabled. Status queries and signed bundle installations are

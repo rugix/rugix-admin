@@ -95,9 +95,7 @@ curl -fL "${url}" -o "${archive}"
 tar -xf "${archive}" -C "${tmpdir}"
 install -m 755 "${tmpdir}/rugix-admin" /usr/bin/rugix-admin
 
-getent group rugix-admin >/dev/null || groupadd --system rugix-admin
-id rugix-admin >/dev/null 2>&1 \
-    || useradd --system --gid rugix-admin --no-create-home --shell /usr/sbin/nologin rugix-admin
+getent group rugix-daemon >/dev/null || groupadd --system rugix-daemon
 
 install -d -m 755 /etc/rugix
 if [[ ! -e /etc/rugix/daemon.toml ]]; then
@@ -125,7 +123,7 @@ ConditionFileIsExecutable=/usr/bin/rugix-ctrl
 [Service]
 Type=simple
 User=root
-Group=rugix-admin
+Group=rugix-daemon
 UMask=0117
 ExecStart=/usr/bin/rugix-ctrl daemon
 Restart=on-failure
@@ -142,8 +140,9 @@ After=rugix-ctrl-daemon.service
 Requires=rugix-ctrl-daemon.service
 
 [Service]
+DynamicUser=yes
 User=rugix-admin
-Group=rugix-admin
+Group=rugix-daemon
 NoNewPrivileges=true
 ExecStart=${admin_exec_start}
 Restart=on-failure
