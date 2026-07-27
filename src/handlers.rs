@@ -32,7 +32,10 @@ pub(crate) async fn health() -> Json<api::HealthResponse> {
 }
 
 pub(crate) async fn configuration(State(state): State<ServerState>) -> Json<api::ConfigResponse> {
-    Json(api::ConfigResponse::new(state.dangerously_insecure))
+    Json(api::ConfigResponse::new(
+        state.dangerously_insecure,
+        state.remote_access,
+    ))
 }
 
 pub(crate) async fn system_info() -> ApiResult<Json<api::SystemInfoResponse>> {

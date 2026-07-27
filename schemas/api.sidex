@@ -15,6 +15,8 @@ record HealthResponse {
 record ConfigResponse {
     /// Whether explicitly insecure installation options are enabled.
     dangerously_insecure: bool,
+    /// Whether the service is listening on a non-loopback address.
+    remote_access: bool,
 }
 
 /// Error response body.

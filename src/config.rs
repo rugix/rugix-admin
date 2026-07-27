@@ -10,13 +10,20 @@ use serde::Deserialize;
 use crate::AdminResult;
 
 pub const CONFIG_PATH: &str = "/etc/rugix/admin.toml";
-pub const DEFAULT_ADDRESS: &str = "0.0.0.0:8088";
+pub const DEFAULT_ADDRESS: &str = "127.0.0.1:8088";
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// The address to bind to.
     pub address: Option<SocketAddr>,
+    /// Allow binding to a non-loopback address despite the lack of authentication.
+    #[serde(
+        default,
+        rename = "insecure-allow-remote-access",
+        alias = "insecure_allow_remote_access"
+    )]
+    pub insecure_allow_remote_access: bool,
     /// Allow installation options that weaken bundle verification.
     #[serde(
         default,
@@ -58,6 +65,27 @@ pub fn resolve_dangerously_insecure(cli_dangerously_insecure: bool, config: &Con
     cli_dangerously_insecure || config.dangerously_insecure
 }
 
+pub fn resolve_insecure_allow_remote_access(
+    cli_insecure_allow_remote_access: bool,
+    config: &Config,
+) -> bool {
+    cli_insecure_allow_remote_access || config.insecure_allow_remote_access
+}
+
+pub fn validate_remote_access(
+    address: SocketAddr,
+    insecure_allow_remote_access: bool,
+) -> AdminResult<()> {
+    if !address.ip().is_loopback() && !insecure_allow_remote_access {
+        reportify::bail!(
+            "refusing to expose unauthenticated Rugix Admin on non-loopback address {address}; \
+             set `insecure-allow-remote-access = true` in {CONFIG_PATH} or pass \
+             `--insecure-allow-remote-access` to acknowledge the risk"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,6 +95,7 @@ mod tests {
         let config: Config = toml::from_str("address = \"127.0.0.1:9000\"").unwrap();
 
         assert_eq!(config.address, Some("127.0.0.1:9000".parse().unwrap()));
+        assert!(!config.insecure_allow_remote_access);
         assert!(!config.dangerously_insecure);
     }
 
@@ -145,5 +174,32 @@ mod tests {
 
         let config: Config = toml::from_str("dangerously-insecure = true").unwrap();
         assert!(resolve_dangerously_insecure(false, &config));
+    }
+
+    #[test]
+    fn configured_remote_access_requires_explicit_acknowledgement() {
+        let local_config = Config::default();
+        validate_remote_access(
+            resolve_address(None, &local_config),
+            resolve_insecure_allow_remote_access(false, &local_config),
+        )
+        .unwrap();
+
+        let remote_config: Config =
+            toml::from_str("address = \"0.0.0.0:8088\"\ninsecure-allow-remote-access = true")
+                .unwrap();
+        validate_remote_access(
+            resolve_address(None, &remote_config),
+            resolve_insecure_allow_remote_access(false, &remote_config),
+        )
+        .unwrap();
+
+        let unacknowledged_config: Config = toml::from_str("address = \"0.0.0.0:8088\"").unwrap();
+        let error = validate_remote_access(
+            resolve_address(None, &unacknowledged_config),
+            resolve_insecure_allow_remote_access(false, &unacknowledged_config),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("insecure-allow-remote-access"));
     }
 }

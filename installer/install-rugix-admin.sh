@@ -24,9 +24,9 @@ fi
 GITHUB_REPO="${RUGIX_ADMIN_GITHUB_REPO:-rugix/rugix-admin}"
 REQUESTED_RUGIX_ADMIN_VERSION="${1:-${RUGIX_ADMIN_VERSION:-${RUGIX_VERSION:-latest}}}"
 RUGIX_ADMIN_ADDRESS_EXPLICIT="${RUGIX_ADMIN_ADDRESS+x}"
-RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-0.0.0.0:8088}"
+RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-127.0.0.1:8088}"
 RUGIX_ADMIN_PORT="${RUGIX_ADMIN_PORT:-${RUGIX_ADMIN_ADDRESS##*:}}"
-RUGIX_ADMIN_FIREWALL_ZONE="${RUGIX_ADMIN_FIREWALL_ZONE:-}"
+RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS="${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS:-false}"
 
 case "$(uname -m)" in
     x86_64|amd64) RUGIX_TARGET="x86_64-unknown-linux-musl" ;;
@@ -42,13 +42,35 @@ if ! [[ "${RUGIX_ADMIN_PORT}" =~ ^[0-9]+$ ]] \
     exit 1
 fi
 
-if [[ "${RUGIX_ADMIN_ADDRESS}" == *$'\n'* || "${RUGIX_ADMIN_ADDRESS}" == *\"* ]]; then
+if ! [[ "${RUGIX_ADMIN_ADDRESS}" =~ ^[][0-9A-Fa-f.:]+$ ]]; then
     echo "invalid Rugix Admin address: ${RUGIX_ADMIN_ADDRESS}" >&2
     exit 1
 fi
 
+case "${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS,,}" in
+    1|true|yes)
+        RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS=true
+        ;;
+    0|false|no)
+        RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS=false
+        ;;
+    *)
+        echo "invalid RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS value: ${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS}" >&2
+        exit 1
+        ;;
+esac
+
 apt-get update
 apt-get install -y ca-certificates curl jq tar
+
+if ! command -v rugix-ctrl >/dev/null 2>&1; then
+    echo "rugix-ctrl was not found; Rugix Admin requires Rugix Ctrl with daemon support" >&2
+    exit 1
+fi
+if ! rugix-ctrl daemon --help >/dev/null 2>&1; then
+    echo "the installed rugix-ctrl does not provide daemon mode; update Rugix Ctrl first" >&2
+    exit 1
+fi
 
 resolve_rugix_admin_version() {
     local requested="$1"
@@ -87,17 +109,59 @@ curl -fL "${url}" -o "${archive}"
 tar -xf "${archive}" -C "${tmpdir}"
 install -m 755 "${tmpdir}/rugix-admin" /usr/bin/rugix-admin
 
+getent group rugix-admin >/dev/null || groupadd --system rugix-admin
+id rugix-admin >/dev/null 2>&1 \
+    || useradd --system --gid rugix-admin --no-create-home --shell /usr/sbin/nologin rugix-admin
+
+install -d -m 755 /etc/rugix
+if [[ ! -e /etc/rugix/daemon.toml ]]; then
+    cat >/etc/rugix/daemon.toml <<'EOF'
+[features]
+factory-reset = true
+system-commit = true
+system-reboot = true
+app-lifecycle = true
+EOF
+    chmod 644 /etc/rugix/daemon.toml
+fi
+
 admin_exec_start="/usr/bin/rugix-admin"
 if [[ -n "${RUGIX_ADMIN_ADDRESS_EXPLICIT}" ]]; then
     admin_exec_start+=" --address ${RUGIX_ADMIN_ADDRESS}"
 fi
+if [[ "${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS}" == true ]]; then
+    admin_exec_start+=" --insecure-allow-remote-access"
+fi
+
+cat >/etc/systemd/system/rugix-ctrl-daemon.service <<'EOF'
+[Unit]
+Description=Privileged Rugix Ctrl Operation Daemon
+After=local-fs.target
+ConditionFileIsExecutable=/usr/bin/rugix-ctrl
+
+[Service]
+Type=simple
+User=root
+Group=rugix-admin
+UMask=0117
+ExecStart=/usr/bin/rugix-ctrl daemon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
 cat >/etc/systemd/system/rugix-admin.service <<EOF
 [Unit]
-Description=Rugix Admin
+Description=Rugix Admin (Development and Demo Use Only)
 ConditionFileIsExecutable=/usr/bin/rugix-admin
+After=rugix-ctrl-daemon.service
+Requires=rugix-ctrl-daemon.service
 
 [Service]
+User=rugix-admin
+Group=rugix-admin
+NoNewPrivileges=true
 ExecStart=${admin_exec_start}
 Restart=on-failure
 
@@ -106,30 +170,18 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now rugix-admin.service
+systemctl enable rugix-ctrl-daemon.service rugix-admin.service
+systemctl restart rugix-ctrl-daemon.service
+systemctl restart rugix-admin.service
 
-if command -v firewall-cmd >/dev/null 2>&1; then
-    firewall_args=(--permanent)
-    if [[ -n "${RUGIX_ADMIN_FIREWALL_ZONE}" ]]; then
-        firewall_args+=(--zone "${RUGIX_ADMIN_FIREWALL_ZONE}")
-    fi
-    firewall_args+=(--add-port "${RUGIX_ADMIN_PORT}/tcp")
-
-    if firewall-cmd --state >/dev/null 2>&1; then
-        firewall-cmd "${firewall_args[@]}"
-        firewall-cmd --reload
-    else
-        echo "firewall-cmd is available, but firewalld is not running; skipping firewall rule" >&2
-    fi
-fi
-
-if ! command -v rugix-ctrl >/dev/null 2>&1; then
-    echo "warning: rugix-ctrl was not found; Rugix Admin requires rugix-ctrl to manage the system" >&2
-fi
-
-cat <<EOF
+if [[ "${RUGIX_ADMIN_INSECURE_ALLOW_REMOTE_ACCESS}" == true ]]; then
+    cat <<EOF
 
 Rugix Admin is installed and listening on ${RUGIX_ADMIN_ADDRESS}.
+
+WARNING: Rugix Admin has no authentication. Anyone who can reach this address
+can request the privileged operations enabled in /etc/rugix/daemon.toml. Use it
+only for development and demos on a trusted network.
 
 Next steps:
   Open Rugix Admin:
@@ -141,3 +193,21 @@ Next steps:
   Follow logs:
     journalctl -u rugix-admin.service -f
 EOF
+else
+    cat <<EOF
+
+Rugix Admin is installed for local development and demo use.
+
+Open an SSH tunnel:
+  ssh -L ${RUGIX_ADMIN_PORT}:127.0.0.1:${RUGIX_ADMIN_PORT} root@<device-address>
+
+Then open:
+  http://127.0.0.1:${RUGIX_ADMIN_PORT}/
+
+Check the service:
+  systemctl status rugix-admin.service
+
+Follow logs:
+  journalctl -u rugix-admin.service -f
+EOF
+fi

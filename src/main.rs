@@ -50,6 +50,9 @@ pub struct Args {
     /// The address to bind to (overrides /etc/rugix/admin.toml).
     #[clap(long)]
     pub address: Option<SocketAddr>,
+    /// Allow binding to a non-loopback address despite the lack of authentication.
+    #[clap(long)]
+    pub insecure_allow_remote_access: bool,
     /// Allow options that weaken bundle verification.
     #[clap(long)]
     pub dangerously_insecure: bool,
@@ -61,6 +64,7 @@ pub struct Args {
 pub(crate) struct ServerState {
     jobs: JobManager,
     dangerously_insecure: bool,
+    remote_access: bool,
 }
 
 #[tokio::main]
@@ -69,17 +73,31 @@ async fn main() -> AdminResult<()> {
     let args = Args::parse();
     let config = config::load()?;
     let address = config::resolve_address(args.address, &config);
+    let insecure_allow_remote_access =
+        config::resolve_insecure_allow_remote_access(args.insecure_allow_remote_access, &config);
+    config::validate_remote_access(address, insecure_allow_remote_access)?;
+    let remote_access = !address.ip().is_loopback();
     let dangerously_insecure =
         config::resolve_dangerously_insecure(args.dangerously_insecure, &config);
     let _guard = si_observability::Initializer::new("RUGIX")
         .apply(&args.logging)
         .init();
 
-    info!(%address, dangerously_insecure, "starting Rugix Admin");
+    info!(%address, dangerously_insecure, remote_access, "starting Rugix Admin");
+    if remote_access {
+        warn!(
+            %address,
+            "remote access is enabled for an unauthenticated development service with access to privileged Rugix Ctrl operations"
+        );
+    }
+    if dangerously_insecure {
+        warn!("bundle verification overrides are enabled");
+    }
 
     let state = ServerState {
         jobs: JobManager::default(),
         dangerously_insecure,
+        remote_access,
     };
 
     let app = Router::new()
@@ -152,6 +170,7 @@ mod tests {
         let args = Args::try_parse_from(["rugix-admin"]).unwrap();
 
         assert_eq!(args.address, None);
+        assert!(!args.insecure_allow_remote_access);
         assert!(!args.dangerously_insecure);
     }
 

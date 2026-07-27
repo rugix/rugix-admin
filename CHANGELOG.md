@@ -21,3 +21,8 @@
   report presentation.
 - Refresh Rust and frontend dependencies to resolve known `crossbeam-epoch` and
   PostCSS advisories.
+- Limit Rugix Admin to explicit development and demo use: bind to loopback by
+  default, require an insecure opt-in for remote access, stop opening firewall
+  ports during installation, and display the security limitation in the UI.
+- Run the installed HTTP service as an unprivileged user and route its Rugix Ctrl
+  commands through the privileged operation daemon.

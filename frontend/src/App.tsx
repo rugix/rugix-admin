@@ -181,7 +181,12 @@ export function App() {
       />
 
       <main className="mx-auto max-w-[1520px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        {configuration?.dangerouslyInsecure && <DemoDisclaimer />}
+        {configuration && (
+          <DemoDisclaimer
+            dangerouslyInsecure={configuration.dangerouslyInsecure}
+            remoteAccess={configuration.remoteAccess}
+          />
+        )}
         <PageTitle tab={tab} />
         {error && <ErrorBanner message={error} />}
         {activeJobId && (
