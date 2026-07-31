@@ -92,15 +92,21 @@ variant SystemStateInfo {
     /// State management is active.
     Active: SystemStateActiveInfo,
     /// State management is inactive due to an error.
-    Error,
-    /// State is temporarily stored in memory because the data partition failed to mount.
-    EphemeralFallback,
+    Error: SystemStateErrorInfo,
 }
 
 /// Information available while state management is active.
 record SystemStateActiveInfo {
     /// Device backing the data partition, if any.
     data_partition?: string,
+}
+
+/// Information about a state-management error.
+record SystemStateErrorInfo {
+    /// Human-readable description of the error.
+    message?: string,
+    /// Whether state is temporarily stored in memory and may not persist.
+    ephemeral?: bool,
 }
 
 /// Output of the component consistency check.

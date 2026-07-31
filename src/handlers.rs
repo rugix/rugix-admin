@@ -1,3 +1,7 @@
+//! HTTP handlers for the Rugix Admin API.
+//!
+//! The handlers translate requests into typed Rugix Ctrl commands and background jobs.
+
 use std::convert::Infallible;
 
 use axum::extract::Multipart;
@@ -464,33 +468,53 @@ fn sse_event(event: events::AdminEvent) -> Event {
 mod tests {
     use super::*;
 
+    /// Verifies that system information accepts every supported state detail and no boot
+    /// flow.
     #[test]
     fn system_info_accepts_missing_boot_flow_and_all_state_details() {
-        let info = serde_json::from_value::<api::SystemInfoResponse>(serde_json::json!({
-            "slots": {
-                "system": {
-                    "active": true,
-                    "hashes": { "sha256": "abc" },
-                    "size": 42,
-                    "updatedAt": "2026-07-14T09:45:00Z"
+        let info = serde_json::from_str::<api::SystemInfoResponse>(
+            r#"{
+                "slots": {
+                    "system": {
+                        "active": true,
+                        "hashes": { "sha256": "abc" },
+                        "size": 42,
+                        "updatedAt": "2026-07-14T09:45:00Z"
+                    }
+                },
+                "state": {
+                    "status": "Active",
+                    "dataPartition": "/dev/vda6"
                 }
-            },
-            "state": {
-                "status": "Active",
-                "dataPartition": "/dev/vda6"
-            }
-        }))
+            }"#,
+        )
         .unwrap();
 
         assert!(info.boot.is_none());
         assert!(matches!(info.state, api::SystemStateInfo::Active(_)));
-        assert!(
-            serde_json::from_value::<api::SystemInfoResponse>(serde_json::json!({
+        let error_info = serde_json::from_str::<api::SystemInfoResponse>(
+            r#"{
                 "slots": {},
-                "state": { "status": "EphemeralFallback" }
-            }))
-            .is_ok()
-        );
+                "state": {
+                    "status": "Error",
+                    "message": "The data partition failed to mount.",
+                    "ephemeral": true
+                }
+            }"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            error_info.state,
+            api::SystemStateInfo::Error(ref error) if error.ephemeral == Some(true)
+        ));
+
+        assert!(serde_json::from_str::<api::SystemInfoResponse>(
+            r#"{
+                "slots": {},
+                "state": { "status": "Error" }
+            }"#,
+        )
+        .is_ok());
     }
 
     #[test]

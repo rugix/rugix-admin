@@ -140,10 +140,12 @@ function StatePanel({ state }: { state?: api.SystemStateInfo }) {
             value={state.status === "Active" ? (state.dataPartition ?? "none") : "not available"}
           />
           {state.status === "Error" && (
-            <Notice text="Persistent state is unavailable because state management encountered an error." />
-          )}
-          {state.status === "EphemeralFallback" && (
-            <Notice text="The data partition failed to mount. State is temporarily stored in memory and will not persist." />
+            <Notice
+              text={
+                state.message ??
+                "Persistent state is unavailable because state management encountered an error."
+              }
+            />
           )}
           {state.status === "Disabled" && (
             <p className="text-sm text-foreground-muted">Persistent state management is disabled.</p>
@@ -164,8 +166,6 @@ function StateBadge({ state }: { state: api.SystemStateInfo }) {
       return <Badge color="bg-elevation-2 text-foreground-muted ring-divider">disabled</Badge>;
     case "Error":
       return <Badge color="bg-danger-surface text-danger ring-danger/30">error</Badge>;
-    case "EphemeralFallback":
-      return <Badge color="bg-warning-surface text-warning ring-warning/30">ephemeral fallback</Badge>;
   }
 }
 
@@ -269,5 +269,5 @@ function bootGroupLabel(group?: string) {
 
 function stateLabel(state?: api.SystemStateInfo) {
   if (!state) return "unknown";
-  return state.status === "EphemeralFallback" ? "ephemeral" : state.status.toLowerCase();
+  return state.status.toLowerCase();
 }
