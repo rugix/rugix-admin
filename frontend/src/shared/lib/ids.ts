@@ -3,8 +3,8 @@ export function createJobId() {
   if (typeof webCrypto?.randomUUID === "function") {
     try {
       return webCrypto.randomUUID();
-    } catch {
-      // Fall back below when randomUUID is exposed but unavailable at runtime.
+    } catch (error) {
+      console.warn("Failed to generate a job ID with randomUUID; using a fallback.", error);
     }
   }
 
@@ -22,8 +22,8 @@ export function createJobId() {
         hex.slice(8, 10).join(""),
         hex.slice(10, 16).join(""),
       ].join("-");
-    } catch {
-      // Use the non-cryptographic fallback below.
+    } catch (error) {
+      console.warn("Failed to generate a job ID with getRandomValues; using a fallback.", error);
     }
   }
 

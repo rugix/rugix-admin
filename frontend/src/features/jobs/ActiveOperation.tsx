@@ -2,11 +2,13 @@ import { Activity, Terminal } from "lucide-react";
 import type { jobs } from "../../generated";
 import { Surface } from "../../shared/components/Surface";
 import { ProgressMeter } from "../../shared/components/ProgressMeter";
+import { Notice } from "../../shared/components/Notice";
 import { formatBytes } from "../../shared/lib/format";
-import { jobProgress, progressLabel } from "../../shared/lib/jobEvents";
 import { JobStatusBadge } from "../../shared/status/JobStatusBadge";
 import { buttonClass } from "../../shared/styles";
-import type { JobLog } from "../../types";
+import { jobProgress, progressLabel } from "./jobEvents";
+import { JobFailureNotice } from "./JobFailureNotice";
+import type { JobLog } from "./types";
 
 export function ActiveOperation({
   jobId,
@@ -37,6 +39,18 @@ export function ActiveOperation({
         <button className={buttonClass} onClick={onOpen}>
           <Terminal size={16} /> View Log
         </button>
+        {job?.status.status === "failed" && (
+          <div className="lg:col-span-3">
+            <JobFailureNotice status={job.status} />
+          </div>
+        )}
+        {log?.notices?.map((notice, index) => (
+          <div key={`${notice.title}:${index}`} className="lg:col-span-3">
+            <Notice title={notice.title} tone={notice.tone}>
+              {notice.message}
+            </Notice>
+          </div>
+        ))}
       </div>
     </Surface>
   );

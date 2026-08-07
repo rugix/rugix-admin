@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   Check,
   Database,
   HardDrive,
@@ -9,15 +8,17 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import type { InstallOptions } from "../../api";
+import { useState } from "react";
+import type { InstallOptions, SystemActionOptions } from "../../api";
 import type { api } from "../../generated";
 import { ActionGroup } from "../../shared/components/ActionGroup";
 import { Badge } from "../../shared/components/Badge";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { Notice } from "../../shared/components/Notice";
 import { Surface } from "../../shared/components/Surface";
 import { confirmAction } from "../../shared/lib/confirm";
 import { compactTime, formatBytes } from "../../shared/lib/format";
-import { buttonClass, dangerButtonClass } from "../../shared/styles";
+import { buttonClass, dangerButtonClass, fieldClass } from "../../shared/styles";
 import { UploadPanel } from "../install/UploadPanel";
 import { StatusCell } from "./StatusCell";
 
@@ -28,14 +29,20 @@ export function SystemPage({
   onAction,
   onUpload,
   onUrlInstall,
+  loading,
+  busy,
 }: {
   system?: api.SystemInfoResponse;
   dangerouslyInsecure: boolean;
   features?: api.DaemonFeatures;
-  onAction: (action: string) => void;
+  loading?: boolean;
+  busy: boolean;
+  onAction: (action: api.SystemAction, query?: SystemActionOptions) => void;
   onUpload: (file: File, options: InstallOptions) => void;
   onUrlInstall: (url: string, options: InstallOptions) => void;
 }) {
+  const [backupState, setBackupState] = useState(false);
+  const [backupName, setBackupName] = useState("");
   const boot = system?.boot;
   const slots = Object.entries(system?.slots ?? {}).filter(
     (entry): entry is [string, api.SystemSlotInfo] => entry[1] !== undefined,
@@ -57,7 +64,13 @@ export function SystemPage({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
-          {boot ? (
+          {system === undefined ? (
+            <Surface title="System Updates" icon={<Upload size={18} />} bodyClassName="p-0">
+              <EmptyState
+                label={loading ? "System information is loading." : "System information is unavailable."}
+              />
+            </Surface>
+          ) : boot ? (
             <UploadPanel
               title="System Update"
               fileLabel="Update bundle"
@@ -68,6 +81,7 @@ export function SystemPage({
               systemRebootEnabled={features?.systemReboot === true}
               onUpload={onUpload}
               onUrlInstall={onUrlInstall}
+              busy={busy}
             />
           ) : (
             <Surface title="System Updates" icon={<Upload size={18} />} bodyClassName="p-0">
@@ -76,12 +90,12 @@ export function SystemPage({
           )}
 
           <Surface title="System Slots" icon={<HardDrive size={18} />} bodyClassName="p-0">
-            <SlotList slots={slots} />
+            <SlotList slots={slots} loaded={system !== undefined} loading={loading} />
           </Surface>
         </div>
 
         <div className="space-y-5 xl:sticky xl:top-24 xl:self-start">
-          <StatePanel state={system?.state} />
+          <StatePanel state={system?.state} loading={loading} />
           <BootGroups boot={boot} />
 
           {hasSystemActions && (
@@ -90,17 +104,28 @@ export function SystemPage({
                 {hasBootActions && (
                   <ActionGroup title="Boot">
                     {boot && features?.systemCommit && (
-                      <button className={buttonClass} onClick={() => onAction("commit")}>
+                      <button className={buttonClass} disabled={busy} onClick={() => onAction("commit")}>
                         <Check size={16} /> Commit
                       </button>
                     )}
                     {features?.systemReboot && (
-                      <button className={buttonClass} onClick={() => onAction("reboot")}>
+                      <button
+                        className={buttonClass}
+                        disabled={busy}
+                        onClick={() => confirmAction("Reboot the device now?") && onAction("reboot")}
+                      >
                         <Power size={16} /> Reboot
                       </button>
                     )}
                     {boot && features?.systemReboot && (
-                      <button className={buttonClass} onClick={() => onAction("reboot-spare")}>
+                      <button
+                        className={buttonClass}
+                        disabled={busy}
+                        onClick={() =>
+                          confirmAction("Reboot the device into the spare system now?") &&
+                          onAction("reboot-spare")
+                        }
+                      >
                         <RotateCcw size={16} /> Reboot Spare
                       </button>
                     )}
@@ -109,9 +134,41 @@ export function SystemPage({
 
                 {features?.factoryReset && (
                   <ActionGroup title="Recovery">
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
+                      <input
+                        className="size-4 accent-primary"
+                        type="checkbox"
+                        checked={backupState}
+                        onChange={(event) => setBackupState(event.target.checked)}
+                      />
+                      Preserve current state as a profile
+                    </label>
+                    {backupState && (
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-foreground-muted">
+                          Backup profile name (optional)
+                        </span>
+                        <input
+                          className={fieldClass}
+                          value={backupName}
+                          onChange={(event) => setBackupName(event.target.value)}
+                        />
+                      </label>
+                    )}
                     <button
                       className={dangerButtonClass}
-                      onClick={() => confirmAction("Factory reset?") && onAction("factory-reset")}
+                      disabled={busy}
+                      onClick={() =>
+                        confirmAction(
+                          backupState
+                            ? "Factory reset and reboot after preserving the current state?"
+                            : "Factory reset and permanently discard the current state?",
+                        ) &&
+                        onAction("factory-reset", {
+                          backup: backupState || undefined,
+                          backupName: backupState ? backupName.trim() || undefined : undefined,
+                        })
+                      }
                     >
                       <Trash2 size={16} /> Factory Reset
                     </button>
@@ -126,7 +183,7 @@ export function SystemPage({
   );
 }
 
-function StatePanel({ state }: { state?: api.SystemStateInfo }) {
+function StatePanel({ state, loading }: { state?: api.SystemStateInfo; loading?: boolean }) {
   return (
     <Surface title="State Management" icon={<Database size={18} />}>
       {state ? (
@@ -140,19 +197,24 @@ function StatePanel({ state }: { state?: api.SystemStateInfo }) {
             value={state.status === "Active" ? (state.dataPartition ?? "none") : "not available"}
           />
           {state.status === "Error" && (
-            <Notice
-              text={
-                state.message ??
-                "Persistent state is unavailable because state management encountered an error."
-              }
-            />
+            <Notice tone="danger">
+              {state.message ??
+                "Persistent state is unavailable because state management encountered an error."}
+            </Notice>
+          )}
+          {state.status === "Error" && state.ephemeral === true && (
+            <Notice tone="warning">
+              Rugix is using temporary in-memory state. Changes may not survive a reboot.
+            </Notice>
           )}
           {state.status === "Disabled" && (
             <p className="text-sm text-foreground-muted">Persistent state management is disabled.</p>
           )}
         </div>
       ) : (
-        <div className="text-sm text-foreground-muted">System information is loading.</div>
+        <div className="text-sm text-foreground-muted">
+          {loading ? "System information is loading." : "System information is unavailable."}
+        </div>
       )}
     </Surface>
   );
@@ -167,15 +229,6 @@ function StateBadge({ state }: { state: api.SystemStateInfo }) {
     case "Error":
       return <Badge color="bg-danger-surface text-danger ring-danger/30">error</Badge>;
   }
-}
-
-function Notice({ text }: { text: string }) {
-  return (
-    <div className="flex gap-2 rounded-md bg-warning-surface p-3 text-sm text-warning">
-      <AlertTriangle className="mt-0.5 shrink-0" size={16} />
-      <span>{text}</span>
-    </div>
-  );
 }
 
 function BootGroups({ boot }: { boot?: api.SystemBootInfo }) {
@@ -207,7 +260,18 @@ function BootGroups({ boot }: { boot?: api.SystemBootInfo }) {
   );
 }
 
-function SlotList({ slots }: { slots: Array<[string, api.SystemSlotInfo]> }) {
+function SlotList({
+  slots,
+  loaded,
+  loading,
+}: {
+  slots: Array<[string, api.SystemSlotInfo]>;
+  loaded: boolean;
+  loading?: boolean;
+}) {
+  if (!loaded) {
+    return <EmptyState label={loading ? "System slots are loading." : "System slots are unavailable."} />;
+  }
   if (slots.length === 0) {
     return <EmptyState label="No system slots are configured." />;
   }
@@ -264,7 +328,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function bootGroupLabel(group?: string) {
-  return group?.toUpperCase() ?? "unknown";
+  return group ?? "unknown";
 }
 
 function stateLabel(state?: api.SystemStateInfo) {

@@ -35,6 +35,9 @@ def main() -> int:
         return 0
 
     if args == ["system", "info", "--json"]:
+        if (state / "system-info-error").exists():
+            print("failed to query boot flow", file=sys.stderr)
+            return 17
         boot = None
         if not (state / "no-boot-flow").exists():
             boot = {
@@ -43,8 +46,15 @@ def main() -> int:
                 "defaultGroup": "a",
                 "groups": {"a": {}, "b": {}},
             }
+        state_info = {"status": "Active", "dataPartition": "/dev/vda6"}
+        if (state / "ephemeral-state-error").exists():
+            state_info = {
+                "status": "Error",
+                "message": "The data partition failed to mount.",
+                "ephemeral": True,
+            }
         system_info = {
-            "state": {"status": "Active", "dataPartition": "/dev/vda6"},
+            "state": state_info,
             "slots": {
                 "system-a": {
                     "active": False,
@@ -123,9 +133,27 @@ def main() -> int:
 
     if is_url_update_command(args):
         print("fake system update download started")
+        emit_compatibility_override(args, "system")
         write_json({"event": "UpdateProgress", "progress": 12.4})
         print("fake system update install running")
         write_json({"event": "UpdateProgress", "progress": 100.0})
+        return 0
+
+    if is_url_app_command(args):
+        print("fake app bundle download started")
+        emit_compatibility_override(args, "app")
+        return 0
+
+    if len(args) >= 3 and args[:2] == ["apps", "activate"]:
+        generation = next((value for value in args[3:] if value.isdigit()), "5")
+        write_json(
+            {
+                "event": "AppActivationResult",
+                "app": args[2],
+                "generation": int(generation),
+                "outcome": "activated",
+            }
+        )
         return 0
 
     if is_upload_command(args):
@@ -159,6 +187,7 @@ def main() -> int:
             },
         )
         print(f"fake {kind} received {len(payload)} bytes")
+        emit_compatibility_override(args, "system" if args[0] == "update" else "app")
         return 0
 
     print(f"fake rugix-ctrl ran: {' '.join(args)}")
@@ -550,6 +579,25 @@ def is_upload_command(args: list[str]) -> bool:
         and args[-1] == "-"
         and (args[:2] == ["update", "install"] or args[:2] == ["apps", "install"])
     )
+
+
+def is_url_app_command(args: list[str]) -> bool:
+    return bool(
+        args
+        and args[0:2] == ["apps", "install"]
+        and args[-1].startswith(("http://", "https://"))
+    )
+
+
+def emit_compatibility_override(args: list[str], scope: str) -> None:
+    if "--skip-compatibility-check" in args:
+        write_json(
+            {
+                "event": "CompatibilityCheckSkipped",
+                "scope": scope,
+                "reason": "requested by test",
+            }
+        )
 
 
 def write_json(value: object) -> None:

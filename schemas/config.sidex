@@ -1,0 +1,13 @@
+//! Rugix Admin configuration-file contract.
+
+/// Socket address on which the service listens.
+#[json(type = "string")]
+#[rust(type = "::std::net::SocketAddr")]
+opaque SocketAddress
+
+/// Rugix Admin service configuration.
+#[json(rename_all = "kebab-case")]
+record Config {
+    /// Address on which the HTTP service listens.
+    address?: SocketAddress,
+}

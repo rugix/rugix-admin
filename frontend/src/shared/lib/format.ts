@@ -13,3 +13,8 @@ export function formatBytes(value: number) {
 export function generationLabel(value: unknown) {
   return value === undefined || value === null ? "none" : `#${String(value)}`;
 }
+
+export function formatMetadata(metadata: unknown) {
+  if (typeof metadata === "string") return metadata;
+  return JSON.stringify(metadata, null, 2) ?? String(metadata);
+}

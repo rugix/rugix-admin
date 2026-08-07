@@ -3,9 +3,9 @@ import type { api, events, jobs } from "./generated";
 export class ApiRequestError extends Error {
   status: number;
   code: string;
-  details?: unknown;
+  details?: api.CommandFailureDetails;
 
-  constructor(status: number, code: string, message: string, details?: unknown) {
+  constructor(status: number, code: string, message: string, details?: api.CommandFailureDetails) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
@@ -16,25 +16,40 @@ export class ApiRequestError extends Error {
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const { headers, ...requestInit } = init ?? {};
-  const response = await fetch(url, {
-    ...requestInit,
-    headers: { Accept: "application/json", ...(headers ?? {}) },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...requestInit,
+      headers: { Accept: "application/json", ...(headers ?? {}) },
+    });
+  } catch (error) {
+    throw new ApiRequestError(0, "network-error", `request failed: ${errorMessage(error)}`);
+  }
   if (!response.ok) {
-    let message = response.statusText;
+    let message = response.statusText || `request failed with HTTP ${response.status}`;
     let code = "request-failed";
-    let details: unknown;
+    let details: api.CommandFailureDetails | undefined;
     try {
       const body = (await response.json()) as api.ApiErrorResponse;
-      message = body.error.message;
-      code = body.error.code;
-      details = body.error.details;
-    } catch {
-      // Keep the HTTP status text.
+      if (body?.error?.message && body.error.code) {
+        message = body.error.message;
+        code = body.error.code;
+        details = body.error.details;
+      }
+    } catch (error) {
+      console.warn("Failed to decode the API error response; using its HTTP status.", error);
     }
     throw new ApiRequestError(response.status, code, message, details);
   }
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    throw new ApiRequestError(
+      response.status,
+      "invalid-response",
+      `server returned invalid JSON: ${errorMessage(error)}`,
+    );
+  }
 }
 
 export const AdminApi = {
@@ -49,32 +64,53 @@ export const AdminApi = {
   app: (name: string) => request<api.AppInfoResponse>(`/api/apps/${encodeURIComponent(name)}`),
   jobs: () => request<api.JobsListResponse>("/api/jobs"),
   job: (id: string) => request<api.JobResponse>(`/api/jobs/${encodeURIComponent(id)}`),
-  systemAction: (action: string) =>
-    request<api.JobResponse>(`/api/system/actions/${encodeURIComponent(action)}`, {
+  systemAction: (action: api.SystemAction, query?: SystemActionOptions) =>
+    request<api.JobResponse>(`/api/system/actions/${encodeURIComponent(action)}${queryString(query)}`, {
       method: "POST",
     }),
-  appAction: (app: string, action: string, query?: Record<string, string | number | undefined>) =>
+  appAction: (app: string, action: api.AppAction, query?: AppActionOptions) =>
     request<api.JobResponse>(
       `/api/apps/${encodeURIComponent(app)}/actions/${encodeURIComponent(action)}${queryString(query)}`,
       { method: "POST" },
     ),
+  garbageCollectApps: (query?: AppGarbageCollectionOptions) =>
+    request<api.JobResponse>(`/api/apps/actions/gc${queryString(query)}`, { method: "POST" }),
 };
 
-export function subscribeJob(jobId: string, onEvent: (event: events.AdminEvent) => void) {
+export function subscribeJob(
+  jobId: string,
+  onEvent: (event: events.AdminEvent) => void,
+  onError: (error: ApiRequestError) => void,
+) {
   const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
-  source.onmessage = (message) => onEvent(JSON.parse(message.data) as events.AdminEvent);
-  source.addEventListener("job-changed", (message) =>
-    onEvent(JSON.parse((message as MessageEvent).data) as events.AdminEvent),
-  );
-  source.addEventListener("job-output", (message) =>
-    onEvent(JSON.parse((message as MessageEvent).data) as events.AdminEvent),
-  );
-  source.addEventListener("upload-progress", (message) =>
-    onEvent(JSON.parse((message as MessageEvent).data) as events.AdminEvent),
-  );
-  source.addEventListener("install-progress", (message) =>
-    onEvent(JSON.parse((message as MessageEvent).data) as events.AdminEvent),
-  );
+  const handleMessage = (message: MessageEvent) => {
+    try {
+      onEvent(JSON.parse(message.data) as events.AdminEvent);
+    } catch (error) {
+      source.close();
+      onError(
+        new ApiRequestError(
+          0,
+          "invalid-event",
+          `job event stream returned invalid JSON: ${errorMessage(error)}`,
+        ),
+      );
+    }
+  };
+  source.onmessage = handleMessage;
+  for (const eventName of [
+    "job-changed",
+    "job-output",
+    "upload-progress",
+    "install-progress",
+    "compatibility-check-skipped",
+    "app-activation-result",
+  ]) {
+    source.addEventListener(eventName, (message) => handleMessage(message as MessageEvent));
+  }
+  source.onerror = () => {
+    onError(new ApiRequestError(0, "event-stream-error", "live job updates were interrupted; reconnecting"));
+  };
   return source;
 }
 
@@ -95,6 +131,14 @@ export function installSystemUpdateFromUrl(jobId: string, url: string, options: 
   }).then((response) => response.job);
 }
 
+export function installAppBundleFromUrl(jobId: string, url: string, options: InstallOptions) {
+  return request<api.JobResponse>(`/api/apps/install/${encodeURIComponent(jobId)}/url${installQuery(options)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  }).then((response) => response.job);
+}
+
 export function uploadAppBundle(
   jobId: string,
   file: File,
@@ -109,9 +153,29 @@ export type InstallOptions = {
   rootCert?: string;
   insecureSkipBundleVerification?: boolean;
   insecureAllowMissingBlockIndex?: boolean;
-  reboot?: "yes" | "no" | "set" | "deferred";
+  skipCompatibilityCheck?: boolean;
+  reboot?: api.SystemRebootMode;
   bootGroup?: string;
   keepOverlay?: boolean;
+  disableRangeQueries?: boolean;
+  httpMaxRetries?: number;
+  httpRetryInitialBackoff?: number;
+  httpRetryMaxBackoff?: number;
+};
+
+export type SystemActionOptions = {
+  backup?: boolean;
+  backupName?: string;
+};
+
+export type AppActionOptions = {
+  generation?: number;
+  keep?: number;
+  skipCompatibilityCheck?: boolean;
+};
+
+export type AppGarbageCollectionOptions = {
+  keep?: number;
 };
 
 function uploadBundle(
@@ -140,13 +204,27 @@ function uploadBundle(
         } else if ("error" in body) {
           reject(new ApiRequestError(xhr.status, body.error.code, body.error.message, body.error.details));
         } else {
-          reject(new ApiRequestError(xhr.status, "upload-failed", xhr.statusText));
+          reject(
+            new ApiRequestError(
+              xhr.status,
+              "upload-failed",
+              xhr.statusText || `upload failed with HTTP ${xhr.status}`,
+            ),
+          );
         }
       } catch (error) {
-        reject(error);
+        reject(
+          new ApiRequestError(
+            xhr.status,
+            "invalid-response",
+            `upload returned invalid JSON: ${errorMessage(error)}`,
+          ),
+        );
       }
     };
-    xhr.onerror = () => reject(new ApiRequestError(0, "network-error", "upload failed"));
+    xhr.onerror = () => reject(new ApiRequestError(0, "network-error", "upload failed because of a network error"));
+    xhr.onabort = () => reject(new ApiRequestError(0, "upload-aborted", "upload was aborted"));
+    xhr.ontimeout = () => reject(new ApiRequestError(0, "upload-timeout", "upload timed out"));
     xhr.send(form);
   });
 }
@@ -157,19 +235,30 @@ function installQuery(options: InstallOptions) {
     rootCert: options.rootCert,
     insecureSkipBundleVerification: options.insecureSkipBundleVerification ? "true" : undefined,
     insecureAllowMissingBlockIndex: options.insecureAllowMissingBlockIndex ? "true" : undefined,
+    skipCompatibilityCheck: options.skipCompatibilityCheck ? "true" : undefined,
     reboot: options.reboot,
     bootGroup: options.bootGroup,
     keepOverlay: options.keepOverlay ? "true" : undefined,
+    disableRangeQueries: options.disableRangeQueries ? "true" : undefined,
+    httpMaxRetries: options.httpMaxRetries,
+    httpRetryInitialBackoff: options.httpRetryInitialBackoff,
+    httpRetryMaxBackoff: options.httpRetryMaxBackoff,
   });
 }
 
-function queryString(query?: Record<string, string | number | undefined>) {
+function queryString(query?: object) {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== "") {
+  for (const [key, value] of Object.entries(query ?? {}) as Array<
+    [string, string | number | boolean | undefined]
+  >) {
+    if (value !== undefined && value !== "" && value !== false) {
       params.set(key, String(value));
     }
   }
   const string = params.toString();
   return string ? `?${string}` : "";
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

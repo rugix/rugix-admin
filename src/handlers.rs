@@ -4,6 +4,10 @@
 
 use std::convert::Infallible;
 
+use axum::extract::multipart::MultipartRejection;
+use axum::extract::rejection::JsonRejection;
+use axum::extract::rejection::PathRejection;
+use axum::extract::rejection::QueryRejection;
 use axum::extract::Multipart;
 use axum::extract::Path;
 use axum::extract::Query;
@@ -16,7 +20,6 @@ use futures::Stream;
 use indexmap::IndexMap;
 use reportify::ResultExt;
 use serde::Deserialize;
-use serde_json::Value;
 use tokio::sync::broadcast;
 
 use crate::ctrl::run_components_check_command;
@@ -28,45 +31,59 @@ use crate::error::ApiError;
 use crate::generated::api;
 use crate::generated::apps;
 use crate::generated::events;
+use crate::operation_options::app_install_args;
+use crate::operation_options::apply_compatibility_override;
+use crate::operation_options::invalid_action_options;
+use crate::operation_options::is_http_url;
+use crate::operation_options::reject_generation_and_keep_options;
+use crate::operation_options::reject_keep_option;
+use crate::operation_options::reject_unused_app_action_options;
+use crate::operation_options::required_non_empty_option;
+use crate::operation_options::system_update_args;
+use crate::operation_options::AppActionQuery;
+use crate::operation_options::AppGarbageCollectionQuery;
+use crate::operation_options::AppInstallQuery;
+use crate::operation_options::InstallFromUrlRequest;
+use crate::operation_options::SystemActionQuery;
+use crate::operation_options::SystemInstallQuery;
 use crate::ApiResult;
 use crate::ServerState;
 
 pub(crate) async fn health() -> Json<api::HealthResponse> {
-    Json(api::HealthResponse::new("ok".to_owned()))
+    Json(api::HealthResponse::new(api::HealthStatus::Ok))
 }
 
 pub(crate) async fn daemon_info() -> ApiResult<Json<api::DaemonInfoResponse>> {
-    let raw = run_json_command(&["daemon", "info", "--json"]).await?;
-    let response = serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
+    let response = run_json_command(&["daemon", "info", "--json"]).await?;
     Ok(Json(response))
 }
 
 pub(crate) async fn system_info() -> ApiResult<Json<api::SystemInfoResponse>> {
-    let raw = run_json_command(&["system", "info", "--json"]).await?;
-    let response = serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
+    let response = run_json_command(&["system", "info", "--json"]).await?;
     Ok(Json(response))
 }
 
 pub(crate) async fn components() -> ApiResult<Json<api::ComponentsCheckResponse>> {
-    let raw = run_components_check_command().await?;
-    let response = serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
+    let response = run_components_check_command().await?;
     Ok(Json(response))
 }
 
 pub(crate) async fn upload_system_update(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    Query(query): Query<SystemInstallQuery>,
-    multipart: Multipart,
+    query: Result<Query<SystemInstallQuery>, QueryRejection>,
+    multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let args = system_update_args(query, "-".to_owned());
+    let Query(query) = query.map_err(invalid_query)?;
+    let multipart = multipart.map_err(invalid_multipart)?;
+    let args = system_update_args(query, "-".to_owned(), false)?;
 
     state
         .jobs
         .create(
             Some(job_id.clone()),
             "Install system update".to_owned(),
-            "system-update".to_owned(),
+            crate::generated::jobs::JobKind::SystemUpdate,
             None,
         )
         .await?;
@@ -77,24 +94,26 @@ pub(crate) async fn upload_system_update(
 pub(crate) async fn install_system_update_from_url(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    Query(query): Query<SystemInstallQuery>,
-    Json(request): Json<SystemUpdateUrlRequest>,
+    query: Result<Query<SystemInstallQuery>, QueryRejection>,
+    request: Result<Json<InstallFromUrlRequest>, JsonRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let args = system_update_args(query, request.url.trim().to_owned());
+    let Query(query) = query.map_err(invalid_query)?;
+    let Json(request) = request.map_err(invalid_json)?;
     let url = request.url.trim();
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
+    if !is_http_url(url) {
         return Err(ApiError::bad_request(
             "invalid-url",
-            "system update URL must start with http:// or https://",
+            "system update URL must be an absolute HTTP or HTTPS URL",
         ));
     }
+    let args = system_update_args(query, url.to_owned(), true)?;
 
     let job = state
         .jobs
         .create(
             Some(job_id.clone()),
             "Install system update".to_owned(),
-            "system-update".to_owned(),
+            crate::generated::jobs::JobKind::SystemUpdate,
             None,
         )
         .await?;
@@ -104,48 +123,68 @@ pub(crate) async fn install_system_update_from_url(
 
 pub(crate) async fn system_action(
     State(state): State<ServerState>,
-    Path(action): Path<String>,
+    path: Result<Path<api::SystemAction>, PathRejection>,
+    query: Result<Query<SystemActionQuery>, QueryRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let spec = match action.as_str() {
-        "factory-reset" => CommandSpec::new(
-            "Factory reset",
-            "system-action",
-            None,
-            ["state", "reset"].into_iter().map(str::to_owned).collect(),
-        ),
-        "commit" => CommandSpec::new(
+    let Path(action) = path.map_err(invalid_path)?;
+    let Query(query) = query.map_err(invalid_query)?;
+    let backup_name = required_non_empty_option("factory-reset backup name", query.backup_name)?;
+    if !matches!(action, api::SystemAction::FactoryReset)
+        && (query.backup.unwrap_or(false) || backup_name.is_some())
+    {
+        return Err(ApiError::bad_request(
+            "invalid-action-options",
+            "backup options apply only to factory reset",
+        ));
+    }
+    let spec = match action {
+        api::SystemAction::FactoryReset => {
+            let mut args = vec!["state".to_owned(), "reset".to_owned()];
+            if query.backup.unwrap_or(false) {
+                args.push("--backup".to_owned());
+                if let Some(name) = backup_name {
+                    args.extend(["--backup-name".to_owned(), name]);
+                }
+            } else if backup_name.is_some() {
+                return Err(ApiError::bad_request(
+                    "invalid-action-options",
+                    "a factory-reset backup name requires backup=true",
+                ));
+            }
+            CommandSpec::new(
+                "Factory reset",
+                crate::generated::jobs::JobKind::SystemAction,
+                None,
+                args,
+            )
+        }
+        api::SystemAction::Commit => CommandSpec::new(
             "Commit active system",
-            "system-action",
+            crate::generated::jobs::JobKind::SystemAction,
             None,
             ["system", "commit"]
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
         ),
-        "reboot" => CommandSpec::new(
+        api::SystemAction::Reboot => CommandSpec::new(
             "Reboot system",
-            "system-action",
+            crate::generated::jobs::JobKind::SystemAction,
             None,
             ["system", "reboot"]
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
         ),
-        "reboot-spare" => CommandSpec::new(
+        api::SystemAction::RebootSpare => CommandSpec::new(
             "Reboot into spare system",
-            "system-action",
+            crate::generated::jobs::JobKind::SystemAction,
             None,
             ["system", "reboot", "--spare"]
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
         ),
-        _ => {
-            return Err(ApiError::bad_request(
-                "invalid-action",
-                "invalid system action",
-            ))
-        }
     };
     let job = state
         .jobs
@@ -160,12 +199,10 @@ pub(crate) async fn list_apps() -> ApiResult<Json<api::AppsListResponse>> {
     struct CliAppEntry {
         status: apps::AppStatus,
         generation: Option<u64>,
-        metadata: Option<Value>,
+        metadata: Option<api::JsonValue>,
     }
 
-    let raw = run_json_command(&["apps", "list"]).await?;
-    let entries: IndexMap<String, CliAppEntry> =
-        serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
+    let entries: IndexMap<String, CliAppEntry> = run_json_command(&["apps", "list"]).await?;
     let apps = entries
         .into_iter()
         .map(|(name, entry)| {
@@ -180,19 +217,19 @@ pub(crate) async fn list_apps() -> ApiResult<Json<api::AppsListResponse>> {
 pub(crate) async fn upload_app_bundle(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    Query(query): Query<AppInstallQuery>,
-    multipart: Multipart,
+    query: Result<Query<AppInstallQuery>, QueryRejection>,
+    multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
-    let mut args = vec!["apps".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &query.into_insecure_options());
-    args.push("-".to_owned());
+    let Query(query) = query.map_err(invalid_query)?;
+    let multipart = multipart.map_err(invalid_multipart)?;
+    let args = app_install_args(query, "-".to_owned(), false)?;
 
     state
         .jobs
         .create(
             Some(job_id.clone()),
             "Install app bundle".to_owned(),
-            "app-install".to_owned(),
+            crate::generated::jobs::JobKind::AppInstall,
             None,
         )
         .await?;
@@ -207,64 +244,133 @@ pub(crate) async fn upload_app_bundle(
     Ok(Json(api::JobResponse::new(state.jobs.get(&job_id).await?)))
 }
 
+pub(crate) async fn install_app_bundle_from_url(
+    State(state): State<ServerState>,
+    Path(job_id): Path<String>,
+    query: Result<Query<AppInstallQuery>, QueryRejection>,
+    request: Result<Json<InstallFromUrlRequest>, JsonRejection>,
+) -> ApiResult<Json<api::JobResponse>> {
+    let Query(query) = query.map_err(invalid_query)?;
+    let Json(request) = request.map_err(invalid_json)?;
+    let url = request.url.trim();
+    if !is_http_url(url) {
+        return Err(ApiError::bad_request(
+            "invalid-url",
+            "application bundle URL must be an absolute HTTP or HTTPS URL",
+        ));
+    }
+    let args = app_install_args(query, url.to_owned(), true)?;
+    let job = state
+        .jobs
+        .create(
+            Some(job_id.clone()),
+            "Install app bundle".to_owned(),
+            crate::generated::jobs::JobKind::AppInstall,
+            None,
+        )
+        .await?;
+    spawn_command_job(state.jobs.clone(), job_id, args);
+    Ok(Json(api::JobResponse::new(job)))
+}
+
 pub(crate) async fn app_info(Path(app): Path<String>) -> ApiResult<Json<api::AppInfoResponse>> {
-    let raw = run_json_command(&["apps", "info", &app]).await?;
-    let info = serde_json::from_value(raw).map_err(ApiError::invalid_ctrl_output)?;
+    let info = run_json_command(&["apps", "info", &app]).await?;
     Ok(Json(info))
 }
 
 pub(crate) async fn app_action(
     State(state): State<ServerState>,
-    Path((app, action)): Path<(String, String)>,
-    Query(query): Query<AppActionQuery>,
+    path: Result<Path<(String, api::AppAction)>, PathRejection>,
+    query: Result<Query<AppActionQuery>, QueryRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
+    let Path((app, action)) = path.map_err(invalid_path)?;
+    let Query(query) = query.map_err(invalid_query)?;
     let mut args = vec!["apps".to_owned()];
     let title;
-    match action.as_str() {
-        "start" => {
+    let AppActionQuery {
+        generation,
+        keep,
+        skip_compatibility_check,
+    } = query;
+    match action {
+        api::AppAction::Start => {
+            reject_unused_app_action_options(generation, keep, skip_compatibility_check)?;
             title = format!("Start {app}");
             args.extend(["start".to_owned(), app.clone()]);
         }
-        "stop" => {
+        api::AppAction::Stop => {
+            reject_unused_app_action_options(generation, keep, skip_compatibility_check)?;
             title = format!("Stop {app}");
             args.extend(["stop".to_owned(), app.clone()]);
         }
-        "activate" => {
+        api::AppAction::Activate => {
+            reject_keep_option(keep)?;
             title = format!("Activate {app}");
             args.extend(["activate".to_owned(), app.clone()]);
-            if let Some(generation) = query.generation {
+            if let Some(generation) = generation {
                 args.push(generation.to_string());
             }
+            apply_compatibility_override(&mut args, skip_compatibility_check);
         }
-        "deactivate" => {
+        api::AppAction::Deactivate => {
+            reject_generation_and_keep_options(generation, keep)?;
             title = format!("Deactivate {app}");
             args.extend(["deactivate".to_owned(), app.clone()]);
+            apply_compatibility_override(&mut args, skip_compatibility_check);
         }
-        "rollback" => {
+        api::AppAction::Rollback => {
+            reject_generation_and_keep_options(generation, keep)?;
             title = format!("Rollback {app}");
             args.extend(["rollback".to_owned(), app.clone()]);
+            apply_compatibility_override(&mut args, skip_compatibility_check);
         }
-        "remove" => {
+        api::AppAction::Remove => {
+            reject_generation_and_keep_options(generation, keep)?;
             title = format!("Remove {app}");
             args.extend(["remove".to_owned(), app.clone()]);
+            apply_compatibility_override(&mut args, skip_compatibility_check);
         }
-        "gc" => {
+        api::AppAction::Gc => {
+            if generation.is_some() || skip_compatibility_check.unwrap_or(false) {
+                return Err(invalid_action_options());
+            }
             title = format!("Garbage collect {app}");
             args.extend(["gc".to_owned(), app.clone()]);
-            if let Some(keep) = query.keep {
+            if let Some(keep) = keep {
                 args.extend(["--keep".to_owned(), keep.to_string()]);
             }
-        }
-        _ => {
-            return Err(ApiError::bad_request(
-                "invalid-action",
-                "invalid app action",
-            ))
         }
     }
     let job = state
         .jobs
-        .create(None, title, "app-action".to_owned(), Some(app))
+        .create(
+            None,
+            title,
+            crate::generated::jobs::JobKind::AppAction,
+            Some(app),
+        )
+        .await?;
+    spawn_command_job(state.jobs.clone(), job.id.clone(), args);
+    Ok(Json(api::JobResponse::new(job)))
+}
+
+pub(crate) async fn garbage_collect_apps(
+    State(state): State<ServerState>,
+    query: Result<Query<AppGarbageCollectionQuery>, QueryRejection>,
+) -> ApiResult<Json<api::JobResponse>> {
+    let Query(query) = query.map_err(invalid_query)?;
+    let mut args = vec!["apps".to_owned(), "gc".to_owned()];
+    if let Some(keep) = query.keep {
+        args.extend(["--keep".to_owned(), keep.to_string()]);
+    }
+    let job = state
+        .jobs
+        .create(
+            None,
+            "Garbage collect apps".to_owned(),
+            crate::generated::jobs::JobKind::AppAction,
+            None,
+        )
         .await?;
     spawn_command_job(state.jobs.clone(), job.id.clone(), args);
     Ok(Json(api::JobResponse::new(job)))
@@ -294,7 +400,10 @@ pub(crate) async fn job_events(
         loop {
             match rx.recv().await {
                 Ok(event) => return Some((Ok(sse_event(event)), (initial, rx))),
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!(skipped, "job event subscriber lagged");
+                    continue;
+                }
                 Err(broadcast::error::RecvError::Closed) => return None,
             }
         }
@@ -302,153 +411,36 @@ pub(crate) async fn job_events(
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
-#[derive(Debug, Deserialize, Default)]
-pub(crate) struct AppActionQuery {
-    generation: Option<u64>,
-    keep: Option<usize>,
+fn invalid_query(error: QueryRejection) -> ApiError {
+    ApiError::request_rejection(
+        error.status(),
+        "invalid-query",
+        format!("invalid query parameters: {error}"),
+    )
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct InsecureInstallOptions {
-    bundle_hash: Option<String>,
-    root_cert: Option<String>,
-    insecure_skip_bundle_verification: Option<bool>,
-    insecure_allow_missing_block_index: Option<bool>,
+fn invalid_path(error: PathRejection) -> ApiError {
+    ApiError::request_rejection(
+        error.status(),
+        "invalid-path",
+        format!("invalid path parameters: {error}"),
+    )
 }
 
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct SystemInstallQuery {
-    #[serde(alias = "bundle_hash")]
-    bundle_hash: Option<String>,
-    #[serde(alias = "root_cert")]
-    root_cert: Option<String>,
-    #[serde(alias = "insecure_skip_bundle_verification")]
-    insecure_skip_bundle_verification: Option<bool>,
-    #[serde(alias = "insecure_allow_missing_block_index")]
-    insecure_allow_missing_block_index: Option<bool>,
-    reboot: Option<String>,
-    #[serde(alias = "boot_group")]
-    boot_group: Option<String>,
-    #[serde(alias = "keep_overlay")]
-    keep_overlay: Option<bool>,
+fn invalid_json(error: JsonRejection) -> ApiError {
+    ApiError::request_rejection(
+        error.status(),
+        "invalid-json",
+        format!("invalid JSON request: {error}"),
+    )
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct SystemUpdateUrlRequest {
-    url: String,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct AppInstallQuery {
-    #[serde(alias = "bundle_hash")]
-    bundle_hash: Option<String>,
-    #[serde(alias = "root_cert")]
-    root_cert: Option<String>,
-    #[serde(alias = "insecure_skip_bundle_verification")]
-    insecure_skip_bundle_verification: Option<bool>,
-    #[serde(alias = "insecure_allow_missing_block_index")]
-    insecure_allow_missing_block_index: Option<bool>,
-}
-
-impl SystemInstallQuery {
-    fn into_parts(self) -> (InsecureInstallOptions, SystemInstallOptions) {
-        // Keep this destructuring exhaustive: every future API option must be
-        // explicitly classified as secure or insecure before the code compiles.
-        let Self {
-            bundle_hash,
-            root_cert,
-            insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index,
-            reboot,
-            boot_group,
-            keep_overlay,
-        } = self;
-        (
-            InsecureInstallOptions {
-                bundle_hash,
-                root_cert,
-                insecure_skip_bundle_verification,
-                insecure_allow_missing_block_index,
-            },
-            SystemInstallOptions {
-                reboot,
-                boot_group,
-                keep_overlay,
-            },
-        )
-    }
-}
-
-impl AppInstallQuery {
-    fn into_insecure_options(self) -> InsecureInstallOptions {
-        // Keep this destructuring exhaustive for the same fail-closed property
-        // as `SystemInstallQuery::into_parts`.
-        let Self {
-            bundle_hash,
-            root_cert,
-            insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index,
-        } = self;
-        InsecureInstallOptions {
-            bundle_hash,
-            root_cert,
-            insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct SystemInstallOptions {
-    reboot: Option<String>,
-    boot_group: Option<String>,
-    keep_overlay: Option<bool>,
-}
-
-fn apply_install_options(args: &mut Vec<String>, options: &InsecureInstallOptions) {
-    let InsecureInstallOptions {
-        bundle_hash,
-        root_cert,
-        insecure_skip_bundle_verification,
-        insecure_allow_missing_block_index,
-    } = options;
-    if insecure_skip_bundle_verification.unwrap_or(false) {
-        args.push("--insecure-skip-bundle-verification".to_owned());
-    }
-    if insecure_allow_missing_block_index.unwrap_or(false) {
-        args.push("--insecure-allow-missing-block-index".to_owned());
-    }
-    if let Some(root_cert) = root_cert {
-        args.extend(["--root-cert".to_owned(), root_cert.clone()]);
-    }
-    if let Some(bundle_hash) = bundle_hash {
-        args.extend(["--bundle-hash".to_owned(), bundle_hash.clone()]);
-    }
-}
-
-fn system_update_args(query: SystemInstallQuery, bundle: String) -> Vec<String> {
-    let (insecure_options, secure_options) = query.into_parts();
-    let mut args = vec!["update".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &insecure_options);
-    let SystemInstallOptions {
-        reboot,
-        boot_group,
-        keep_overlay,
-    } = secure_options;
-    if let Some(reboot) = reboot {
-        args.extend(["--reboot".to_owned(), reboot]);
-    }
-    if let Some(boot_group) = boot_group {
-        args.extend(["--boot-group".to_owned(), boot_group]);
-    }
-    if keep_overlay.unwrap_or(false) {
-        args.push("--keep-overlay".to_owned());
-    }
-    args.push(bundle);
-    args
+fn invalid_multipart(error: MultipartRejection) -> ApiError {
+    ApiError::request_rejection(
+        error.status(),
+        "invalid-multipart",
+        format!("invalid multipart upload: {error}"),
+    )
 }
 
 fn sse_event(event: events::AdminEvent) -> Event {
@@ -457,6 +449,8 @@ fn sse_event(event: events::AdminEvent) -> Event {
         events::AdminEvent::JobOutput(_) => "job-output",
         events::AdminEvent::UploadProgress(_) => "upload-progress",
         events::AdminEvent::InstallProgress(_) => "install-progress",
+        events::AdminEvent::CompatibilityCheckSkipped(_) => "compatibility-check-skipped",
+        events::AdminEvent::AppActivationResult(_) => "app-activation-result",
     };
     Event::default().event(event_name).data(
         serde_json::to_string(&event)
@@ -515,40 +509,5 @@ mod tests {
             }"#,
         )
         .is_ok());
-    }
-
-    #[test]
-    fn forwards_install_options_for_daemon_authorization() {
-        let query = InsecureInstallOptions {
-            bundle_hash: Some("sha256:abc".to_owned()),
-            root_cert: Some("/etc/rugix/root.pem".to_owned()),
-            insecure_skip_bundle_verification: Some(true),
-            insecure_allow_missing_block_index: Some(true),
-        };
-        let mut args = Vec::new();
-
-        apply_install_options(&mut args, &query);
-
-        assert_eq!(
-            args,
-            [
-                "--insecure-skip-bundle-verification",
-                "--insecure-allow-missing-block-index",
-                "--root-cert",
-                "/etc/rugix/root.pem",
-                "--bundle-hash",
-                "sha256:abc",
-            ]
-        );
-    }
-
-    #[test]
-    fn install_queries_reject_unknown_options() {
-        assert!(serde_urlencoded::from_str::<SystemInstallQuery>("futureOption=true").is_err());
-        assert!(serde_urlencoded::from_str::<AppInstallQuery>("futureOption=true").is_err());
-        assert!(serde_json::from_str::<SystemUpdateUrlRequest>(
-            r#"{"url":"https://example.com/update.rugixb","futureOption":true}"#
-        )
-        .is_err());
     }
 }

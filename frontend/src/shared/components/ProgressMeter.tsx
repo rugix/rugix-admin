@@ -16,7 +16,14 @@ export function ProgressMeter({
         <span>{boundedPercent === undefined ? fallback : `${boundedPercent}%`}</span>
       </div>
       {boundedPercent !== undefined && (
-        <div className="h-1.5 overflow-hidden rounded-full bg-elevation-3">
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-elevation-3"
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={boundedPercent}
+        >
           <div className="h-full bg-primary" style={{ width: `${boundedPercent}%` }} />
         </div>
       )}

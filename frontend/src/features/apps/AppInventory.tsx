@@ -7,10 +7,14 @@ import { AppStatusBadge } from "../../shared/status/AppStatusBadge";
 
 export function AppInventory({
   apps: appSummaries,
+  loaded,
+  loading,
   selected,
   onSelect,
 }: {
   apps: api.AppSummary[];
+  loaded: boolean;
+  loading?: boolean;
   selected?: string;
   onSelect: (app: string) => void;
 }) {
@@ -31,9 +35,15 @@ export function AppInventory({
               selected === app.name && "bg-primary-muted",
             )}
             onClick={() => onSelect(app.name)}
+            aria-pressed={selected === app.name}
           >
             <span className="min-w-0">
               <span className="block truncate font-mono text-sm font-semibold">{app.name}</span>
+              {metadataLabel(app.metadata) && (
+                <span className="mt-1 block truncate text-xs text-foreground-muted">
+                  {metadataLabel(app.metadata)}
+                </span>
+              )}
               <span className="mt-1 block text-xs text-foreground-muted md:hidden">
                 generation <span className="font-mono">{generationLabel(app.generation)}</span>
               </span>
@@ -50,8 +60,19 @@ export function AppInventory({
             </span>
           </button>
         ))}
-        {appSummaries.length === 0 && <EmptyState label="No apps installed." />}
+        {appSummaries.length === 0 && (
+          <EmptyState
+            label={
+              loaded ? "No apps installed." : loading ? "Applications are loading." : "Applications are unavailable."
+            }
+          />
+        )}
       </div>
     </div>
   );
+}
+
+function metadataLabel(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || !("label" in metadata)) return undefined;
+  return typeof metadata.label === "string" ? metadata.label : undefined;
 }

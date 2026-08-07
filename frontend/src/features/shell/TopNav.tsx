@@ -12,6 +12,7 @@ export function TopNav({
   onTabChange,
   onThemeChange,
   onRefresh,
+  refreshing,
 }: {
   tab: Tab;
   theme: Theme;
@@ -19,6 +20,7 @@ export function TopNav({
   onTabChange: (tab: Tab) => void;
   onThemeChange: (theme: Theme) => void;
   onRefresh: () => void;
+  refreshing: boolean;
 }) {
   return (
     <header className="sticky top-0 z-20 border-b border-divider bg-elevation-0/85 backdrop-blur-xl">
@@ -28,7 +30,10 @@ export function TopNav({
           <div className="truncate font-display text-base font-semibold">Rugix Admin</div>
         </div>
 
-        <nav className="order-3 flex w-full rounded-lg border border-divider bg-elevation-1 p-1 sm:order-none sm:ml-4 sm:w-auto">
+        <nav
+          aria-label="Admin sections"
+          className="order-3 flex w-full rounded-lg border border-divider bg-elevation-1 p-1 sm:order-none sm:ml-4 sm:w-auto"
+        >
           <TabButton active={tab === "system"} icon={<Server size={16} />} label="System" onClick={() => onTabChange("system")} />
           <TabButton
             active={tab === "components"}
@@ -59,11 +64,18 @@ export function TopNav({
             className={iconButtonClass}
             onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
             title={theme === "dark" ? "Use light mode" : "Use dark mode"}
+            aria-label={theme === "dark" ? "Use light mode" : "Use dark mode"}
           >
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <button className={iconButtonClass} onClick={onRefresh} title="Refresh">
-            <RefreshCw size={17} />
+          <button
+            className={iconButtonClass}
+            onClick={onRefresh}
+            title="Refresh"
+            aria-label="Refresh device information"
+            disabled={refreshing}
+          >
+            <RefreshCw size={17} className={refreshing ? "animate-spin" : undefined} />
           </button>
         </div>
       </div>

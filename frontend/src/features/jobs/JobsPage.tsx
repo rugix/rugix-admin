@@ -5,8 +5,8 @@ import { Surface } from "../../shared/components/Surface";
 import { classes } from "../../shared/lib/classes";
 import { compactTime } from "../../shared/lib/format";
 import { JobStatusBadge } from "../../shared/status/JobStatusBadge";
-import type { JobLog } from "../../types";
 import { JobLogSurface } from "./JobLogSurface";
+import type { JobLog } from "./types";
 
 export function JobsPage({
   jobs,
@@ -14,14 +14,16 @@ export function JobsPage({
   selectedJob,
   log,
   onSelect,
+  loading,
 }: {
-  jobs: jobs.Job[];
+  jobs?: jobs.Job[];
   selected?: string;
   selectedJob?: jobs.Job;
   log?: JobLog;
   onSelect: (id: string) => void;
+  loading?: boolean;
 }) {
-  const orderedJobs = [...jobs].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  const orderedJobs = [...(jobs ?? [])].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(300px,440px)_minmax(0,1fr)]">
@@ -35,6 +37,7 @@ export function JobsPage({
                 "group flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-elevation-2",
                 selected === job.id && "bg-primary-muted",
               )}
+              aria-pressed={selected === job.id}
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{job.title}</span>
@@ -45,7 +48,11 @@ export function JobsPage({
               <JobStatusBadge status={job.status} />
             </button>
           ))}
-          {orderedJobs.length === 0 && <EmptyState label="No jobs." />}
+          {orderedJobs.length === 0 && (
+            <EmptyState
+              label={jobs ? "No jobs." : loading ? "Job history is loading." : "Job history is unavailable."}
+            />
+          )}
         </div>
       </Surface>
 

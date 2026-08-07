@@ -1,3 +1,5 @@
+//! Rugix application state and workload status contracts.
+
 /// Persisted app state.
 #[json(tag = "state", rename_all = "lowercase")]
 variant AppState {

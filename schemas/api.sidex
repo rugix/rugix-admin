@@ -1,3 +1,5 @@
+//! HTTP API contract for Rugix Admin.
+
 import apps::AppState
 import apps::AppStatus
 import jobs::Job
@@ -7,8 +9,15 @@ opaque JsonValue
 
 /// Health response.
 record HealthResponse {
-    /// Service status.
-    status: string,
+    /// Service readiness status.
+    status: HealthStatus,
+}
+
+/// Rugix Admin readiness status.
+#[json(tagged = externally, rename_all = "lowercase")]
+variant HealthStatus {
+    /// The service is ready to accept requests.
+    Ok,
 }
 
 /// Effective privileged daemon policy used by Rugix Admin.
@@ -43,8 +52,141 @@ record ApiError {
     code: string,
     /// Human-readable error message.
     message: string,
-    /// Optional structured details.
-    details?: JsonValue,
+    /// Command output available when Rugix Ctrl exits unsuccessfully.
+    details?: CommandFailureDetails,
+}
+
+/// Details captured from an unsuccessful Rugix Ctrl command.
+record CommandFailureDetails {
+    /// Process exit status.
+    exit_status: string,
+    /// Standard output, when non-empty.
+    stdout?: string,
+    /// Standard error, when non-empty.
+    stderr?: string,
+}
+
+/// System action accepted by the Rugix Admin API.
+#[json(tagged = externally, rename_all = "kebab-case")]
+variant SystemAction {
+    /// Reset persistent state and reboot.
+    FactoryReset,
+    /// Make the active system the default.
+    Commit,
+    /// Reboot the active system.
+    Reboot,
+    /// Reboot into the spare system.
+    RebootSpare,
+}
+
+/// Application action accepted by the Rugix Admin API.
+#[json(tagged = externally, rename_all = "kebab-case")]
+variant AppAction {
+    /// Start the active workload.
+    Start,
+    /// Stop the active workload.
+    Stop,
+    /// Activate an application generation.
+    Activate,
+    /// Deactivate the active generation.
+    Deactivate,
+    /// Roll back to the previously active generation.
+    Rollback,
+    /// Remove the application.
+    Remove,
+    /// Remove unused application generations.
+    Gc,
+}
+
+/// Reboot behavior for a system update.
+#[json(tagged = externally, rename_all = "lowercase")]
+variant SystemRebootMode {
+    /// Select the installed system and reboot immediately.
+    Yes,
+    /// Do not change boot selection.
+    No,
+    /// Select the installed system without rebooting.
+    Set,
+    /// Record the installed system for selection during the next boot.
+    Deferred,
+}
+
+/// Query parameters accepted when installing a system update.
+record SystemInstallOptions {
+    /// Expected bundle hash override.
+    bundle_hash?: string,
+    /// Root certificate path override.
+    root_cert?: string,
+    /// Whether to permit an unsigned bundle.
+    insecure_skip_bundle_verification?: bool,
+    /// Whether to permit payloads without a block index.
+    insecure_allow_missing_block_index?: bool,
+    /// Whether to bypass component compatibility checks.
+    skip_compatibility_check?: bool,
+    /// Reboot behavior after installation.
+    reboot?: SystemRebootMode,
+    /// Boot group to update.
+    boot_group?: string,
+    /// Whether to preserve the target slot's overlay.
+    keep_overlay?: bool,
+    /// Whether HTTP range requests should be disabled.
+    disable_range_queries?: bool,
+    /// Maximum number of retries for transient HTTP errors.
+    http_max_retries?: u32,
+    /// Initial HTTP retry backoff in seconds.
+    http_retry_initial_backoff?: u64,
+    /// Maximum HTTP retry backoff in seconds.
+    http_retry_max_backoff?: u64,
+}
+
+/// Query parameters accepted when installing an application bundle.
+record AppInstallOptions {
+    /// Expected bundle hash override.
+    bundle_hash?: string,
+    /// Root certificate path override.
+    root_cert?: string,
+    /// Whether to permit an unsigned bundle.
+    insecure_skip_bundle_verification?: bool,
+    /// Whether to permit payloads without a block index.
+    insecure_allow_missing_block_index?: bool,
+    /// Whether to bypass component compatibility checks.
+    skip_compatibility_check?: bool,
+    /// Maximum number of retries for transient HTTP errors.
+    http_max_retries?: u32,
+    /// Initial HTTP retry backoff in seconds.
+    http_retry_initial_backoff?: u64,
+    /// Maximum HTTP retry backoff in seconds.
+    http_retry_max_backoff?: u64,
+}
+
+/// Query parameters accepted by application lifecycle actions.
+record AppActionOptions {
+    /// Generation to activate.
+    generation?: u64,
+    /// Number of previously active generations to retain during garbage collection.
+    keep?: idx,
+    /// Whether to bypass component compatibility checks.
+    skip_compatibility_check?: bool,
+}
+
+/// Query parameters accepted when garbage collecting all applications.
+record AppGarbageCollectionOptions {
+    /// Number of previously active generations to retain for each application.
+    keep?: idx,
+}
+
+/// Query parameters accepted by system actions.
+record SystemActionOptions {
+    /// Whether a factory reset should preserve the old state as a profile.
+    backup?: bool,
+    /// Optional name for the preserved state profile.
+    backup_name?: string,
+}
+
+/// Request to install a bundle from an HTTP source.
+record InstallFromUrlRequest {
+    /// HTTP or HTTPS bundle URL.
+    url: string,
 }
 
 /// System information reported by `rugix-ctrl`.

@@ -1,3 +1,5 @@
+//! Server-sent event contract for Rugix Admin jobs.
+
 import jobs::Job
 
 /// Events emitted by Rugix Admin.
@@ -11,6 +13,19 @@ variant AdminEvent {
     UploadProgress: UploadProgressEvent,
     /// The installation phase changed.
     InstallProgress: InstallProgressEvent,
+    /// Rugix Ctrl bypassed a compatibility check.
+    CompatibilityCheckSkipped: CompatibilityCheckSkippedEvent,
+    /// An explicit application activation completed.
+    AppActivationResult: AppActivationResultEvent,
+}
+
+/// Output stream produced by Rugix Ctrl.
+#[json(tagged = externally, rename_all = "lowercase")]
+variant JobOutputStream {
+    /// Standard output.
+    Stdout,
+    /// Standard error.
+    Stderr,
 }
 
 /// Event emitted when a job changes.
@@ -23,8 +38,8 @@ record JobChangedEvent {
 record JobOutputEvent {
     /// Stable job id.
     job_id: string,
-    /// Output stream, typically `stdout` or `stderr`.
-    stream: string,
+    /// Output stream.
+    stream: JobOutputStream,
     /// One output line.
     line: string,
 }
@@ -43,4 +58,48 @@ record InstallProgressEvent {
     job_id: string,
     /// Installation progress percentage.
     progress: f64,
+}
+
+/// Event emitted when Rugix Ctrl bypasses a component compatibility check.
+record CompatibilityCheckSkippedEvent {
+    /// Stable job id.
+    job_id: string,
+    /// Scope of the bypassed check.
+    scope: CompatibilityCheckScope,
+    /// Human-readable reason for bypassing the check.
+    reason: string,
+}
+
+/// Bundle target whose compatibility check was bypassed.
+#[json(tagged = externally, rename_all = "lowercase")]
+variant CompatibilityCheckScope {
+    /// System bundle installation.
+    System,
+    /// Application bundle installation.
+    App,
+}
+
+/// Outcome of an explicit application activation.
+#[json(tagged = externally, rename_all = "kebab-case")]
+variant AppActivationOutcome {
+    /// The requested generation was activated.
+    Activated,
+    /// Activation failed and Rugix rolled back successfully.
+    RolledBack,
+    /// Activation failed without attempting a rollback.
+    Failed,
+    /// Activation and the automatic rollback both failed.
+    RollbackFailed,
+}
+
+/// Event emitted after an explicit application activation attempt.
+record AppActivationResultEvent {
+    /// Stable job id.
+    job_id: string,
+    /// Application name.
+    app: string,
+    /// Requested generation.
+    generation: u64,
+    /// Activation outcome.
+    outcome: AppActivationOutcome,
 }

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Complete the privileged-daemon feature surface with app URL installations,
+  app deactivation, state-backup reset controls, compatibility overrides,
+  system target controls, and HTTP retry configuration.
+- Surface partial-load failures, Rugix Ctrl diagnostics, job failures,
+  compatibility bypasses, activation outcomes, detailed app state, ephemeral
+  system state, and application metadata in the frontend.
+- Replace untyped Rugix Ctrl JSON handling with typed event and response
+  decoding, define the service configuration and expanded HTTP contracts in
+  Sidex, standardize API extractor failures, and return typed API errors for
+  unknown endpoints.
 - Move Rugix Admin into its own repository with a standalone installer and
   release pipeline.
 - Reflect the privileged daemon's effective feature and installation security

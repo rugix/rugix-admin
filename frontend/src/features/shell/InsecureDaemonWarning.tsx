@@ -2,7 +2,10 @@ import { ShieldAlert } from "lucide-react";
 
 export function InsecureDaemonWarning() {
   return (
-    <div className="rounded-lg border border-danger/40 bg-danger-surface px-4 py-3 text-danger shadow-elevation-plus-1">
+    <div
+      className="rounded-lg border border-danger/40 bg-danger-surface px-4 py-3 text-danger shadow-elevation-plus-1"
+      role="alert"
+    >
       <div className="flex flex-wrap items-center gap-3">
         <ShieldAlert size={20} className="mt-0.5 shrink-0" />
         <div className="text-sm font-semibold">Rugix Ctrl security bypasses enabled</div>

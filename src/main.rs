@@ -1,3 +1,8 @@
+//! Rugix Admin HTTP service.
+//!
+//! The service exposes a typed local management API, runs Rugix Ctrl operations as
+//! tracked jobs, and serves the embedded browser interface.
+
 use std::net::SocketAddr;
 use std::time::Instant;
 
@@ -28,6 +33,7 @@ mod ctrl;
 mod error;
 mod handlers;
 mod jobs;
+mod operation_options;
 
 sidex::include_bundle!(pub rugix_admin as generated);
 
@@ -46,7 +52,7 @@ reportify::new_whatever_type! {
 type AdminResult<T> = Result<T, Report<AdminError>>;
 
 #[derive(Debug, Clone, Parser)]
-pub struct Args {
+pub(crate) struct Args {
     /// The address to bind to (overrides /etc/rugix/admin.toml).
     #[clap(long)]
     pub address: Option<SocketAddr>,
@@ -94,6 +100,11 @@ async fn main() -> AdminResult<()> {
             "/api/apps/install/:job_id",
             post(handlers::upload_app_bundle),
         )
+        .route(
+            "/api/apps/install/:job_id/url",
+            post(handlers::install_app_bundle_from_url),
+        )
+        .route("/api/apps/actions/gc", post(handlers::garbage_collect_apps))
         .route("/api/apps/:app", get(handlers::app_info))
         .route("/api/apps/:app/actions/:action", post(handlers::app_action))
         .route("/api/jobs", get(handlers::list_jobs))
@@ -107,16 +118,16 @@ async fn main() -> AdminResult<()> {
     Server::bind(&address)
         .serve(app.into_make_service())
         .await
-        .whatever("unable to serve Rugix Admin")
+        .whatever("failed to serve Rugix Admin")
         .field_display("address", address)?;
     Ok(())
 }
 
 async fn trace_request(request: Request<Body>, next: Next<Body>) -> Response {
     let method = request.method().clone();
-    let uri = request.uri().clone();
+    let path = request.uri().path().to_owned();
     let started = Instant::now();
-    let span = tracing::info_span!("request", %method, uri = %uri);
+    let span = tracing::info_span!("request", %method, %path);
 
     async move {
         debug!("handling request");
@@ -140,6 +151,7 @@ async fn trace_request(request: Request<Body>, next: Next<Body>) -> Response {
 mod tests {
     use super::*;
 
+    /// Verifies that configuration, rather than Clap, supplies the default address.
     #[test]
     fn address_has_no_cli_default() {
         let args = Args::try_parse_from(["rugix-admin"]).unwrap();

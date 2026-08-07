@@ -1,3 +1,5 @@
+//! Embedded frontend asset serving and single-page application fallback behavior.
+
 use axum::http::header;
 use axum::http::HeaderValue;
 use axum::http::StatusCode;
@@ -6,9 +8,13 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use reportify::ResultExt;
 
+use crate::error::ApiError;
 use crate::FRONTEND;
 
 pub(crate) async fn static_asset(uri: Uri) -> Response {
+    if uri.path() == "/api" || uri.path().starts_with("/api/") {
+        return ApiError::not_found("endpoint-not-found", "API endpoint not found").into_response();
+    }
     let path = uri.path().trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
     let file = FRONTEND

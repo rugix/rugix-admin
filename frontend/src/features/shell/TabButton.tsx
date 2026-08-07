@@ -9,6 +9,7 @@ export function TabButton({ active, icon, label, onClick }: { active: boolean; i
         active ? "bg-primary text-primary-content shadow-elevation-plus-1" : "text-foreground-muted hover:bg-elevation-3 hover:text-foreground",
       )}
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
     >
       {icon}
       {label}

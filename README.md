@@ -16,8 +16,11 @@ Rugix Admin is part of [Rugix](https://rugix.org), an open-source tool suite for
 
 Rugix Admin provides a browser-based management interface for systems running [Rugix Ctrl](https://github.com/rugix/rugix). It exposes system status, update operations, application management, component compatibility information, and job logs through a single self-contained service. The privileged Rugix Ctrl daemon determines which operations are available.
 
-- **System Updates**: Install Rugix system updates from uploaded bundles or URLs.
-- **Application Management**: Install, inspect, start, stop, and remove Rugix application bundles.
+- **System Updates**: Install uploaded or remote bundles with boot-group, overlay,
+  reboot, verification, compatibility, range-request, and retry controls.
+- **Application Management**: Install uploaded or remote bundles; inspect app
+  state, workload health, generations, and metadata; and manage the complete
+  daemon-backed lifecycle.
 - **Component Compatibility**: Review scanned component roots, loaded components, capabilities, and consistency problems.
 - **Job Tracking**: Follow long-running operations with streamed status and logs.
 - **Embedded Frontend**: Ships the React frontend as part of the release binary.
@@ -80,6 +83,13 @@ callers to bypass Rugix Ctrl's bundle verification and compatibility checks.
 Rugix Admin displays a red warning whenever the daemon reports this mode. It is
 suitable only for development.
 
+Rugix Admin covers every operation exposed by the privileged daemon: system,
+component, and application queries; system and application bundle
+installations; state resets; system commit and reboot; and application
+activation, deactivation, workload, rollback, removal, and per-app or all-app
+garbage collection. Local recovery and low-level maintenance commands that are
+not part of the daemon protocol remain command-line operations.
+
 ## Development
 
 Rugix Admin uses [mise](https://mise.jdx.dev/) for development tools and tasks.
@@ -107,6 +117,9 @@ mise run codegen
 mise run test:e2e
 mise run build x86_64-unknown-linux-musl
 ```
+
+On NixOS or a host without Playwright browsers, run
+`cd frontend && pnpm run test:e2e:nix` instead.
 
 Run `mise run doctor` to check host dependencies. Development requires rustup
 and a C compiler. Cross-builds additionally require Docker or Podman.

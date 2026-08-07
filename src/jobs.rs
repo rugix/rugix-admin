@@ -1,3 +1,8 @@
+//! In-memory job state and event distribution.
+//!
+//! [`JobManager`] keeps recent event history for late subscribers and broadcasts live
+//! changes to connected browsers.
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -10,6 +15,9 @@ use crate::generated::events;
 use crate::generated::jobs;
 use crate::ApiResult;
 
+const JOB_EVENT_CHANNEL_CAPACITY: usize = 128;
+const JOB_EVENT_HISTORY_CAPACITY: usize = 512;
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct JobManager {
     inner: Arc<RwLock<IndexMap<String, JobEntry>>>,
@@ -20,6 +28,7 @@ struct JobEntry {
     job: jobs::Job,
     events: VecDeque<events::AdminEvent>,
     last_install_progress_percent: Option<u8>,
+    last_stderr_line: Option<String>,
     tx: broadcast::Sender<events::AdminEvent>,
 }
 
@@ -28,11 +37,11 @@ impl JobManager {
         &self,
         id: Option<String>,
         title: String,
-        kind: String,
+        kind: jobs::JobKind,
         target: Option<String>,
     ) -> ApiResult<jobs::Job> {
         let id = id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        tracing::info!(job_id = %id, %title, %kind, target = ?target, "creating job");
+        tracing::info!(job_id = %id, %title, ?kind, target = ?target, "creating job");
         let now = now();
         let job = jobs::Job::new(
             id.clone(),
@@ -44,9 +53,9 @@ impl JobManager {
         )
         .with_target(target);
         let event = events::AdminEvent::JobChanged(events::JobChangedEvent::new(job.clone()));
-        let (tx, _) = broadcast::channel(128);
+        let (tx, _initial_receiver) = broadcast::channel(JOB_EVENT_CHANNEL_CAPACITY);
         let mut events = VecDeque::new();
-        events.push_back(event.clone());
+        events.push_back(event);
 
         let mut inner = self.inner.write().await;
         if inner.contains_key(&id) {
@@ -58,10 +67,10 @@ impl JobManager {
                 job: job.clone(),
                 events,
                 last_install_progress_percent: None,
+                last_stderr_line: None,
                 tx: tx.clone(),
             },
         );
-        let _ = tx.send(event);
         Ok(job)
     }
 
@@ -104,7 +113,7 @@ impl JobManager {
     }
 
     pub(crate) async fn fail(&self, job_id: &str, message: String, exit_code: Option<i32>) {
-        tracing::warn!(%job_id, %message, ?exit_code, "failing job");
+        tracing::warn!(%job_id, ?exit_code, "failing job");
         self.set_status(
             job_id,
             jobs::JobStatus::Failed(jobs::JobFailure::new(message).with_exit_code(exit_code)),
@@ -112,16 +121,45 @@ impl JobManager {
         .await;
     }
 
-    pub(crate) async fn emit_output(&self, job_id: &str, stream: &str, line: String) {
-        self.push_event(
-            job_id,
-            events::AdminEvent::JobOutput(events::JobOutputEvent::new(
-                job_id.to_owned(),
-                stream.to_owned(),
-                line,
-            )),
-        )
-        .await;
+    pub(crate) async fn fail_command(&self, job_id: &str, exit_code: Option<i32>) {
+        let last_stderr_line = self
+            .inner
+            .read()
+            .await
+            .get(job_id)
+            .and_then(|entry| entry.last_stderr_line.clone());
+        let message = last_stderr_line
+            .map(|line| format!("rugix-ctrl failed: {line}"))
+            .unwrap_or_else(|| match exit_code {
+                Some(code) => format!("rugix-ctrl failed with exit code {code}"),
+                None => "rugix-ctrl failed without an exit code".to_owned(),
+            });
+        self.fail(job_id, message, exit_code).await;
+    }
+
+    pub(crate) async fn emit_output(
+        &self,
+        job_id: &str,
+        stream: events::JobOutputStream,
+        line: String,
+    ) {
+        let event = events::AdminEvent::JobOutput(events::JobOutputEvent::new(
+            job_id.to_owned(),
+            stream.clone(),
+            line.clone(),
+        ));
+        let tx = {
+            let mut inner = self.inner.write().await;
+            let Some(entry) = inner.get_mut(job_id) else {
+                tracing::warn!(%job_id, "discarding output for an unknown job");
+                return;
+            };
+            if matches!(stream, events::JobOutputStream::Stderr) {
+                entry.last_stderr_line = Some(line);
+            }
+            push_entry_event(entry, event.clone())
+        };
+        send_live_event(job_id, &tx, event);
     }
 
     pub(crate) async fn emit_upload_progress(&self, job_id: &str, bytes: u64) {
@@ -144,6 +182,7 @@ impl JobManager {
         let tx = {
             let mut inner = self.inner.write().await;
             let Some(entry) = inner.get_mut(job_id) else {
+                tracing::warn!(%job_id, "discarding install progress for an unknown job");
                 return;
             };
             if entry.last_install_progress_percent == Some(progress_percent) {
@@ -152,13 +191,48 @@ impl JobManager {
             entry.last_install_progress_percent = Some(progress_percent);
             push_entry_event(entry, event.clone())
         };
-        let _ = tx.send(event);
+        send_live_event(job_id, &tx, event);
+    }
+
+    pub(crate) async fn emit_compatibility_check_skipped(
+        &self,
+        job_id: &str,
+        scope: events::CompatibilityCheckScope,
+        reason: String,
+    ) {
+        self.push_event(
+            job_id,
+            events::AdminEvent::CompatibilityCheckSkipped(
+                events::CompatibilityCheckSkippedEvent::new(job_id.to_owned(), scope, reason),
+            ),
+        )
+        .await;
+    }
+
+    pub(crate) async fn emit_app_activation_result(
+        &self,
+        job_id: &str,
+        app: String,
+        generation: u64,
+        outcome: events::AppActivationOutcome,
+    ) {
+        self.push_event(
+            job_id,
+            events::AdminEvent::AppActivationResult(events::AppActivationResultEvent::new(
+                job_id.to_owned(),
+                app,
+                generation,
+                outcome,
+            )),
+        )
+        .await;
     }
 
     async fn update_job(&self, job_id: &str, update: impl FnOnce(&mut jobs::Job)) {
         let event = {
             let mut inner = self.inner.write().await;
             let Some(entry) = inner.get_mut(job_id) else {
+                tracing::warn!(%job_id, "discarding a status change for an unknown job");
                 return;
             };
             update(&mut entry.job);
@@ -172,11 +246,12 @@ impl JobManager {
         let tx = {
             let mut inner = self.inner.write().await;
             let Some(entry) = inner.get_mut(job_id) else {
+                tracing::warn!(%job_id, "discarding an event for an unknown job");
                 return;
             };
             push_entry_event(entry, event.clone())
         };
-        let _ = tx.send(event);
+        send_live_event(job_id, &tx, event);
     }
 }
 
@@ -185,10 +260,21 @@ fn push_entry_event(
     event: events::AdminEvent,
 ) -> broadcast::Sender<events::AdminEvent> {
     entry.events.push_back(event);
-    while entry.events.len() > 512 {
+    while entry.events.len() > JOB_EVENT_HISTORY_CAPACITY {
         entry.events.pop_front();
     }
     entry.tx.clone()
+}
+
+/// Broadcasts an event when subscribers are present; history covers late subscribers.
+fn send_live_event(
+    job_id: &str,
+    tx: &broadcast::Sender<events::AdminEvent>,
+    event: events::AdminEvent,
+) {
+    if tx.send(event).is_err() {
+        tracing::debug!(%job_id, "job has no live event subscribers");
+    }
 }
 
 fn rounded_progress_percent(progress: f64) -> u8 {

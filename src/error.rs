@@ -1,3 +1,8 @@
+//! API error reporting and JSON response conversion.
+//!
+//! [`ApiError`] preserves diagnostic context for server logs while exposing a stable,
+//! typed error response to HTTP clients.
+
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
@@ -5,8 +10,6 @@ use axum::Json;
 use reportify::Error as _;
 use reportify::ErrorExt;
 use reportify::Report;
-use serde_json::json;
-use serde_json::Value;
 
 use crate::generated::api;
 
@@ -15,7 +18,7 @@ struct ApiErrorData {
     status: StatusCode,
     code: &'static str,
     message: String,
-    details: Option<Value>,
+    details: Option<api::CommandFailureDetails>,
 }
 
 impl reportify::Error for ApiErrorData {
@@ -53,6 +56,14 @@ impl ApiError {
         Self::from_data(Self::data(StatusCode::BAD_REQUEST, code, message))
     }
 
+    pub(crate) fn request_rejection(
+        status: StatusCode,
+        code: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::from_data(Self::data(status, code, message))
+    }
+
     pub(crate) fn conflict(code: &'static str, message: impl Into<String>) -> Self {
         Self::from_data(Self::data(StatusCode::CONFLICT, code, message))
     }
@@ -65,40 +76,32 @@ impl ApiError {
         let error = Self::data(
             StatusCode::BAD_GATEWAY,
             "command-spawn-failed",
-            format!("unable to spawn {command}: {err}"),
+            format!("failed to spawn {command}: {err}"),
         );
         Self(
             err.escalate(error)
-                .message("unable to start command")
+                .message("failed to start command")
                 .field("command", command),
         )
     }
 
-    pub(crate) fn command_failed(
-        command: &str,
-        args: &[&str],
-        output: &std::process::Output,
-    ) -> Self {
+    pub(crate) fn command_failed(command: &str, output: &std::process::Output) -> Self {
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        let details = api::CommandFailureDetails::new(output.status.to_string())
+            .with_stdout(non_empty(stdout.clone()))
+            .with_stderr(non_empty(stderr.clone()));
         let error = ApiErrorData {
             status: StatusCode::BAD_GATEWAY,
             code: "command-failed",
-            message: format!("{command} exited with {}", output.status),
-            details: Some(json!({
-                "args": args,
-                "stdout": stdout,
-                "stderr": stderr,
-            })),
+            message: format!("{command} failed with {}", output.status),
+            details: Some(details),
         };
         Self(
             Report::new(error)
                 .message("command exited unsuccessfully")
                 .field("command", command)
-                .field_debug("arguments", args)
-                .field_display("status", output.status)
-                .field("stdout", stdout)
-                .field("stderr", stderr),
+                .field_display("status", output.status),
         )
     }
 
@@ -110,9 +113,14 @@ impl ApiError {
         );
         Self(
             err.escalate(error)
-                .message("unable to decode rugix-ctrl output"),
+                .message("failed to decode rugix-ctrl output"),
         )
     }
+}
+
+/// Returns `None` for empty command output.
+fn non_empty(value: String) -> Option<String> {
+    (!value.trim().is_empty()).then_some(value)
 }
 
 impl IntoResponse for ApiError {
@@ -149,6 +157,7 @@ impl IntoResponse for ApiError {
 mod tests {
     use super::*;
 
+    /// Verifies that process-spawn failures retain their source error and API category.
     #[test]
     fn command_spawn_error_retains_its_cause() {
         let error = ApiError::command_spawn(
@@ -161,6 +170,7 @@ mod tests {
         assert_eq!(error.0.error().code, "command-spawn-failed");
     }
 
+    /// Verifies that caller validation errors do not invent a source error.
     #[test]
     fn validation_error_has_no_synthetic_cause() {
         let error = ApiError::bad_request("invalid-input", "invalid input");

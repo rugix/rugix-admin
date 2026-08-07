@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleSlash, Network, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleSlash, Network, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import type { api } from "../../generated";
 import { Badge } from "../../shared/components/Badge";
@@ -6,7 +6,16 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { Surface } from "../../shared/components/Surface";
 import { classes } from "../../shared/lib/classes";
 
-export function ComponentsPage({ report }: { report?: api.ComponentsCheckResponse }) {
+export function ComponentsPage({ report, loading }: { report?: api.ComponentsCheckResponse; loading?: boolean }) {
+  if (!report) {
+    return (
+      <Surface title="Component Compatibility" icon={<Network size={18} />} bodyClassName="p-0">
+        <EmptyState
+          label={loading ? "Component information is loading." : "Component information is unavailable."}
+        />
+      </Surface>
+    );
+  }
   const components = [...(report?.components ?? [])].sort((left, right) =>
     left.component.id.localeCompare(right.component.id),
   );
@@ -110,6 +119,11 @@ function ComponentList({ components }: { components: api.LoadedComponent[] }) {
                 <CountBadge label="claims" count={claims.length} />
                 <CountBadge label="requires" count={component.requires.length} />
                 <CountBadge label="conflicts" count={component.conflicts.length} />
+                <ChevronDown
+                  aria-hidden="true"
+                  className="text-foreground-subtle transition group-open:rotate-180"
+                  size={16}
+                />
               </div>
             </summary>
             <div className="grid gap-3 border-t border-divider bg-elevation-0 px-4 py-3 lg:grid-cols-4">
