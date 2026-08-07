@@ -10,7 +10,7 @@ export function GenerationTable({
   onActivate,
 }: {
   generations: api.AppGeneration[];
-  onActivate?: (generation: number) => void;
+  onActivate?: (generation: api.AppGeneration["number"]) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -44,7 +44,7 @@ export function GenerationTable({
                   {!generation.active && generation.complete && (
                     <button
                       className={buttonClass}
-                      onClick={() => onActivate(Number(generation.number))}
+                      onClick={() => onActivate(generation.number)}
                     >
                       <Play size={16} /> Activate
                     </button>

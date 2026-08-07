@@ -447,7 +447,7 @@ async fn emit_ctrl_event(jobs: &JobManager, job_id: &str, event: CtrlEvent) {
             generation,
             outcome,
         } => {
-            jobs.emit_app_activation_result(job_id, app, generation, outcome.into())
+            jobs.emit_app_activation_result(job_id, app, generation, outcome)
                 .await;
         }
     }
@@ -506,28 +506,8 @@ enum CtrlEvent {
     AppActivationResult {
         app: String,
         generation: u64,
-        outcome: CtrlAppActivationOutcome,
+        outcome: events::AppActivationOutcome,
     },
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum CtrlAppActivationOutcome {
-    Activated,
-    RolledBack,
-    Failed,
-    RollbackFailed,
-}
-
-impl From<CtrlAppActivationOutcome> for events::AppActivationOutcome {
-    fn from(outcome: CtrlAppActivationOutcome) -> Self {
-        match outcome {
-            CtrlAppActivationOutcome::Activated => Self::Activated,
-            CtrlAppActivationOutcome::RolledBack => Self::RolledBack,
-            CtrlAppActivationOutcome::Failed => Self::Failed,
-            CtrlAppActivationOutcome::RollbackFailed => Self::RollbackFailed,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -552,7 +532,7 @@ mod tests {
                 r#"{"event":"AppActivationResult","app":"demo","generation":2,"outcome":"rolled-back"}"#
             ),
             Ok(CtrlEvent::AppActivationResult {
-                outcome: CtrlAppActivationOutcome::RolledBack,
+                outcome: events::AppActivationOutcome::RolledBack,
                 ..
             })
         ));

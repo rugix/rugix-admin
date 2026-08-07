@@ -40,12 +40,6 @@ use crate::operation_options::reject_keep_option;
 use crate::operation_options::reject_unused_app_action_options;
 use crate::operation_options::required_non_empty_option;
 use crate::operation_options::system_update_args;
-use crate::operation_options::AppActionQuery;
-use crate::operation_options::AppGarbageCollectionQuery;
-use crate::operation_options::AppInstallQuery;
-use crate::operation_options::InstallFromUrlRequest;
-use crate::operation_options::SystemActionQuery;
-use crate::operation_options::SystemInstallQuery;
 use crate::ApiResult;
 use crate::ServerState;
 
@@ -71,7 +65,7 @@ pub(crate) async fn components() -> ApiResult<Json<api::ComponentsCheckResponse>
 pub(crate) async fn upload_system_update(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    query: Result<Query<SystemInstallQuery>, QueryRejection>,
+    query: Result<Query<api::SystemInstallOptions>, QueryRejection>,
     multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Query(query) = query.map_err(invalid_query)?;
@@ -94,8 +88,8 @@ pub(crate) async fn upload_system_update(
 pub(crate) async fn install_system_update_from_url(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    query: Result<Query<SystemInstallQuery>, QueryRejection>,
-    request: Result<Json<InstallFromUrlRequest>, JsonRejection>,
+    query: Result<Query<api::SystemInstallOptions>, QueryRejection>,
+    request: Result<Json<api::InstallFromUrlRequest>, JsonRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Query(query) = query.map_err(invalid_query)?;
     let Json(request) = request.map_err(invalid_json)?;
@@ -124,7 +118,7 @@ pub(crate) async fn install_system_update_from_url(
 pub(crate) async fn system_action(
     State(state): State<ServerState>,
     path: Result<Path<api::SystemAction>, PathRejection>,
-    query: Result<Query<SystemActionQuery>, QueryRejection>,
+    query: Result<Query<api::SystemActionOptions>, QueryRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Path(action) = path.map_err(invalid_path)?;
     let Query(query) = query.map_err(invalid_query)?;
@@ -217,7 +211,7 @@ pub(crate) async fn list_apps() -> ApiResult<Json<api::AppsListResponse>> {
 pub(crate) async fn upload_app_bundle(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    query: Result<Query<AppInstallQuery>, QueryRejection>,
+    query: Result<Query<api::AppInstallOptions>, QueryRejection>,
     multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Query(query) = query.map_err(invalid_query)?;
@@ -247,8 +241,8 @@ pub(crate) async fn upload_app_bundle(
 pub(crate) async fn install_app_bundle_from_url(
     State(state): State<ServerState>,
     Path(job_id): Path<String>,
-    query: Result<Query<AppInstallQuery>, QueryRejection>,
-    request: Result<Json<InstallFromUrlRequest>, JsonRejection>,
+    query: Result<Query<api::AppInstallOptions>, QueryRejection>,
+    request: Result<Json<api::InstallFromUrlRequest>, JsonRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Query(query) = query.map_err(invalid_query)?;
     let Json(request) = request.map_err(invalid_json)?;
@@ -281,13 +275,13 @@ pub(crate) async fn app_info(Path(app): Path<String>) -> ApiResult<Json<api::App
 pub(crate) async fn app_action(
     State(state): State<ServerState>,
     path: Result<Path<(String, api::AppAction)>, PathRejection>,
-    query: Result<Query<AppActionQuery>, QueryRejection>,
+    query: Result<Query<api::AppActionOptions>, QueryRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Path((app, action)) = path.map_err(invalid_path)?;
     let Query(query) = query.map_err(invalid_query)?;
     let mut args = vec!["apps".to_owned()];
     let title;
-    let AppActionQuery {
+    let api::AppActionOptions {
         generation,
         keep,
         skip_compatibility_check,
@@ -356,7 +350,7 @@ pub(crate) async fn app_action(
 
 pub(crate) async fn garbage_collect_apps(
     State(state): State<ServerState>,
-    query: Result<Query<AppGarbageCollectionQuery>, QueryRejection>,
+    query: Result<Query<api::AppGarbageCollectionOptions>, QueryRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
     let Query(query) = query.map_err(invalid_query)?;
     let mut args = vec!["apps".to_owned(), "gc".to_owned()];

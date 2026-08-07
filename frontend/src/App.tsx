@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AdminApi,
-  type AppActionOptions,
   installAppBundleFromUrl,
   installSystemUpdateFromUrl,
-  type InstallOptions,
-  type SystemActionOptions,
   subscribeJob,
   uploadAppBundle,
   uploadSystemUpdate,
@@ -190,7 +187,7 @@ export function App() {
     watchJob(job.id);
   }
 
-  async function runSystemAction(action: api.SystemAction, query?: SystemActionOptions) {
+  async function runSystemAction(action: api.SystemAction, query?: api.SystemActionOptions) {
     if (submitting) return;
     setSubmitting(true);
     setOperationError(undefined);
@@ -204,7 +201,7 @@ export function App() {
     }
   }
 
-  async function runAppAction(action: api.AppAction, query?: AppActionOptions) {
+  async function runAppAction(action: api.AppAction, query?: api.AppActionOptions) {
     if (!selectedApp) return;
     if (submitting) return;
     setSubmitting(true);
@@ -219,7 +216,7 @@ export function App() {
     }
   }
 
-  async function garbageCollectApps(keep: number) {
+  async function garbageCollectApps(keep: NonNullable<api.AppGarbageCollectionOptions["keep"]>) {
     if (submitting) return;
     setSubmitting(true);
     setOperationError(undefined);
@@ -233,7 +230,11 @@ export function App() {
     }
   }
 
-  async function upload(kind: "system" | "app", file: File, options: InstallOptions) {
+  async function upload(
+    kind: "system" | "app",
+    file: File,
+    options: api.SystemInstallOptions,
+  ) {
     const jobId = createJobId();
     if (submitting) return;
     setSubmitting(true);
@@ -259,7 +260,11 @@ export function App() {
     }
   }
 
-  async function installUrl(kind: "system" | "app", url: string, options: InstallOptions) {
+  async function installUrl(
+    kind: "system" | "app",
+    url: string,
+    options: api.SystemInstallOptions,
+  ) {
     const jobId = createJobId();
     if (submitting) return;
     setSubmitting(true);

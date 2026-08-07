@@ -9,7 +9,6 @@ import {
   Upload,
 } from "lucide-react";
 import { useState } from "react";
-import type { InstallOptions, SystemActionOptions } from "../../api";
 import type { api } from "../../generated";
 import { ActionGroup } from "../../shared/components/ActionGroup";
 import { Badge } from "../../shared/components/Badge";
@@ -37,9 +36,9 @@ export function SystemPage({
   features?: api.DaemonFeatures;
   loading?: boolean;
   busy: boolean;
-  onAction: (action: api.SystemAction, query?: SystemActionOptions) => void;
-  onUpload: (file: File, options: InstallOptions) => void;
-  onUrlInstall: (url: string, options: InstallOptions) => void;
+  onAction: (action: api.SystemAction, query?: api.SystemActionOptions) => void;
+  onUpload: (file: File, options: api.SystemInstallOptions) => void;
+  onUrlInstall: (url: string, options: api.SystemInstallOptions) => void;
 }) {
   const [backupState, setBackupState] = useState(false);
   const [backupName, setBackupName] = useState("");

@@ -5,23 +5,15 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::Path;
 
+use reportify::whatever;
 use reportify::ErrorExt;
 use reportify::ResultExt;
-use serde::Deserialize;
 
 pub(crate) use crate::generated::config::Config;
 use crate::AdminResult;
 
 pub(crate) const CONFIG_PATH: &str = "/etc/rugix/admin.toml";
 pub(crate) const DEFAULT_ADDRESS: &str = "0.0.0.0:7492";
-
-/// Strict parsing view for the Sidex contract, whose generated decoder permits
-/// forward-compatible unknown fields.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-struct ConfigFile {
-    address: Option<SocketAddr>,
-}
 
 #[tracing::instrument(level = "debug")]
 pub(crate) fn load() -> AdminResult<Config> {
@@ -53,9 +45,20 @@ fn load_from(path: &Path) -> AdminResult<Config> {
 }
 
 /// Parses the Sidex-defined configuration while rejecting misspelled fields.
-fn parse_config(content: &str) -> Result<Config, toml::de::Error> {
-    let ConfigFile { address } = toml::from_str(content)?;
-    Ok(Config { address })
+fn parse_config(content: &str) -> AdminResult<Config> {
+    let mut unknown_field = None;
+    let mut deserializer = toml::Deserializer::new(content);
+    let config: Config = serde_ignored::deserialize(&mut deserializer, |path| {
+        unknown_field.get_or_insert_with(|| path.to_string());
+    })
+    .whatever("unable to decode Rugix Admin configuration")?;
+    if let Some(unknown_field) = unknown_field {
+        return Err(
+            whatever!("Rugix Admin configuration contains an unknown field")
+                .field("field", unknown_field),
+        );
+    }
+    Ok(config)
 }
 
 #[cfg(test)]

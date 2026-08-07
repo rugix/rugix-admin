@@ -64,16 +64,16 @@ export const AdminApi = {
   app: (name: string) => request<api.AppInfoResponse>(`/api/apps/${encodeURIComponent(name)}`),
   jobs: () => request<api.JobsListResponse>("/api/jobs"),
   job: (id: string) => request<api.JobResponse>(`/api/jobs/${encodeURIComponent(id)}`),
-  systemAction: (action: api.SystemAction, query?: SystemActionOptions) =>
+  systemAction: (action: api.SystemAction, query?: api.SystemActionOptions) =>
     request<api.JobResponse>(`/api/system/actions/${encodeURIComponent(action)}${queryString(query)}`, {
       method: "POST",
     }),
-  appAction: (app: string, action: api.AppAction, query?: AppActionOptions) =>
+  appAction: (app: string, action: api.AppAction, query?: api.AppActionOptions) =>
     request<api.JobResponse>(
       `/api/apps/${encodeURIComponent(app)}/actions/${encodeURIComponent(action)}${queryString(query)}`,
       { method: "POST" },
     ),
-  garbageCollectApps: (query?: AppGarbageCollectionOptions) =>
+  garbageCollectApps: (query?: api.AppGarbageCollectionOptions) =>
     request<api.JobResponse>(`/api/apps/actions/gc${queryString(query)}`, { method: "POST" }),
 };
 
@@ -117,66 +117,38 @@ export function subscribeJob(
 export function uploadSystemUpdate(
   jobId: string,
   file: File,
-  options: InstallOptions,
+  options: api.SystemInstallOptions,
   onProgress: (sent: number, total: number) => void,
 ) {
-  return uploadBundle(`/api/system/update/${encodeURIComponent(jobId)}${installQuery(options)}`, "image", file, onProgress);
+  return uploadBundle(`/api/system/update/${encodeURIComponent(jobId)}${installQuery(options, options)}`, "image", file, onProgress);
 }
 
-export function installSystemUpdateFromUrl(jobId: string, url: string, options: InstallOptions) {
-  return request<api.JobResponse>(`/api/system/update/${encodeURIComponent(jobId)}/url${installQuery(options)}`, {
+export function installSystemUpdateFromUrl(jobId: string, url: string, options: api.SystemInstallOptions) {
+  const body: api.InstallFromUrlRequest = { url };
+  return request<api.JobResponse>(`/api/system/update/${encodeURIComponent(jobId)}/url${installQuery(options, options)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(body),
   }).then((response) => response.job);
 }
 
-export function installAppBundleFromUrl(jobId: string, url: string, options: InstallOptions) {
+export function installAppBundleFromUrl(jobId: string, url: string, options: api.AppInstallOptions) {
+  const body: api.InstallFromUrlRequest = { url };
   return request<api.JobResponse>(`/api/apps/install/${encodeURIComponent(jobId)}/url${installQuery(options)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(body),
   }).then((response) => response.job);
 }
 
 export function uploadAppBundle(
   jobId: string,
   file: File,
-  options: InstallOptions,
+  options: api.AppInstallOptions,
   onProgress: (sent: number, total: number) => void,
 ) {
   return uploadBundle(`/api/apps/install/${encodeURIComponent(jobId)}${installQuery(options)}`, "bundle", file, onProgress);
 }
-
-export type InstallOptions = {
-  bundleHash?: string;
-  rootCert?: string;
-  insecureSkipBundleVerification?: boolean;
-  insecureAllowMissingBlockIndex?: boolean;
-  skipCompatibilityCheck?: boolean;
-  reboot?: api.SystemRebootMode;
-  bootGroup?: string;
-  keepOverlay?: boolean;
-  disableRangeQueries?: boolean;
-  httpMaxRetries?: number;
-  httpRetryInitialBackoff?: number;
-  httpRetryMaxBackoff?: number;
-};
-
-export type SystemActionOptions = {
-  backup?: boolean;
-  backupName?: string;
-};
-
-export type AppActionOptions = {
-  generation?: number;
-  keep?: number;
-  skipCompatibilityCheck?: boolean;
-};
-
-export type AppGarbageCollectionOptions = {
-  keep?: number;
-};
 
 function uploadBundle(
   url: string,
@@ -229,17 +201,20 @@ function uploadBundle(
   });
 }
 
-function installQuery(options: InstallOptions) {
+function installQuery(
+  options: api.AppInstallOptions,
+  systemOptions?: api.SystemInstallOptions,
+) {
   return queryString({
     bundleHash: options.bundleHash,
     rootCert: options.rootCert,
     insecureSkipBundleVerification: options.insecureSkipBundleVerification ? "true" : undefined,
     insecureAllowMissingBlockIndex: options.insecureAllowMissingBlockIndex ? "true" : undefined,
     skipCompatibilityCheck: options.skipCompatibilityCheck ? "true" : undefined,
-    reboot: options.reboot,
-    bootGroup: options.bootGroup,
-    keepOverlay: options.keepOverlay ? "true" : undefined,
-    disableRangeQueries: options.disableRangeQueries ? "true" : undefined,
+    reboot: systemOptions?.reboot,
+    bootGroup: systemOptions?.bootGroup,
+    keepOverlay: systemOptions?.keepOverlay ? "true" : undefined,
+    disableRangeQueries: systemOptions?.disableRangeQueries ? "true" : undefined,
     httpMaxRetries: options.httpMaxRetries,
     httpRetryInitialBackoff: options.httpRetryInitialBackoff,
     httpRetryMaxBackoff: options.httpRetryMaxBackoff,

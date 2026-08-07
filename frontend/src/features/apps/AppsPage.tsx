@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { PackagePlus, Trash2 } from "lucide-react";
-import type { AppActionOptions, InstallOptions } from "../../api";
 import type { api } from "../../generated";
 import { Badge } from "../../shared/components/Badge";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { Surface } from "../../shared/components/Surface";
-import { isNonNegativeInteger } from "../../shared/lib/numbers";
+import { parseIdx } from "../../shared/lib/numbers";
 import { buttonClass, fieldClass } from "../../shared/styles";
 import { UploadPanel } from "../install/UploadPanel";
 import { AppDetailPanel } from "./AppDetailPanel";
@@ -33,10 +32,12 @@ export function AppsPage({
   selected?: api.AppSummary;
   info?: api.AppInfoResponse;
   onSelect: (app: string) => void;
-  onUpload: (file: File, options: InstallOptions) => void;
-  onUrlInstall: (url: string, options: InstallOptions) => void;
-  onAction: (action: api.AppAction, query?: AppActionOptions) => void;
-  onGarbageCollect: (keep: number) => void;
+  onUpload: (file: File, options: api.SystemInstallOptions) => void;
+  onUrlInstall: (url: string, options: api.SystemInstallOptions) => void;
+  onAction: (action: api.AppAction, query?: api.AppActionOptions) => void;
+  onGarbageCollect: (
+    keep: NonNullable<api.AppGarbageCollectionOptions["keep"]>,
+  ) => void;
   loading?: boolean;
   infoLoading?: boolean;
   busy: boolean;
@@ -44,6 +45,7 @@ export function AppsPage({
   const appSummaries = apps ?? [];
   const [skipCompatibilityCheck, setSkipCompatibilityCheck] = useState(false);
   const [globalKeepGenerations, setGlobalKeepGenerations] = useState("1");
+  const globalKeep = parseIdx(globalKeepGenerations);
   const orderedGenerations = [...(info?.generations ?? [])].sort(
     (left, right) => Number(right.number) - Number(left.number),
   );
@@ -73,8 +75,10 @@ export function AppsPage({
                 </label>
                 <button
                   className={buttonClass}
-                  disabled={!isNonNegativeInteger(globalKeepGenerations) || busy}
-                  onClick={() => onGarbageCollect(Number(globalKeepGenerations))}
+                  disabled={globalKeep === undefined || busy}
+                  onClick={() => {
+                    if (globalKeep !== undefined) onGarbageCollect(globalKeep);
+                  }}
                 >
                   <Trash2 size={16} /> GC all
                 </button>

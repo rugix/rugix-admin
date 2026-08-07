@@ -1,134 +1,74 @@
 //! Request validation and Rugix Ctrl argument construction for privileged operations.
 //!
-//! The Sidex API schema defines the public shapes. These parsing views additionally
-//! reject unknown query and JSON fields so misspelled security options fail closed.
-
-use serde::Deserialize;
+//! Sidex-generated types define the public request shapes used by these helpers.
 
 use crate::error::ApiError;
 use crate::generated::api;
 use crate::ApiResult;
 
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct AppActionQuery {
-    pub(crate) generation: Option<u64>,
-    pub(crate) keep: Option<usize>,
-    #[serde(alias = "skip_compatibility_check")]
-    pub(crate) skip_compatibility_check: Option<bool>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct AppGarbageCollectionQuery {
-    pub(crate) keep: Option<usize>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct SystemActionQuery {
-    pub(crate) backup: Option<bool>,
-    #[serde(alias = "backup_name")]
-    pub(crate) backup_name: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct SystemInstallQuery {
-    #[serde(alias = "bundle_hash")]
-    bundle_hash: Option<String>,
-    #[serde(alias = "root_cert")]
-    root_cert: Option<String>,
-    #[serde(alias = "insecure_skip_bundle_verification")]
-    insecure_skip_bundle_verification: Option<bool>,
-    #[serde(alias = "insecure_allow_missing_block_index")]
-    insecure_allow_missing_block_index: Option<bool>,
-    #[serde(alias = "skip_compatibility_check")]
-    skip_compatibility_check: Option<bool>,
-    reboot: Option<api::SystemRebootMode>,
-    #[serde(alias = "boot_group")]
-    boot_group: Option<String>,
-    #[serde(alias = "keep_overlay")]
-    keep_overlay: Option<bool>,
-    #[serde(alias = "disable_range_queries")]
-    disable_range_queries: Option<bool>,
-    #[serde(alias = "http_max_retries")]
-    http_max_retries: Option<u32>,
-    #[serde(alias = "http_retry_initial_backoff")]
-    http_retry_initial_backoff: Option<u64>,
-    #[serde(alias = "http_retry_max_backoff")]
-    http_retry_max_backoff: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct InstallFromUrlRequest {
-    pub(crate) url: String,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub(crate) struct AppInstallQuery {
-    #[serde(alias = "bundle_hash")]
-    bundle_hash: Option<String>,
-    #[serde(alias = "root_cert")]
-    root_cert: Option<String>,
-    #[serde(alias = "insecure_skip_bundle_verification")]
-    insecure_skip_bundle_verification: Option<bool>,
-    #[serde(alias = "insecure_allow_missing_block_index")]
-    insecure_allow_missing_block_index: Option<bool>,
-    #[serde(alias = "skip_compatibility_check")]
-    skip_compatibility_check: Option<bool>,
-    #[serde(alias = "http_max_retries")]
-    http_max_retries: Option<u32>,
-    #[serde(alias = "http_retry_initial_backoff")]
-    http_retry_initial_backoff: Option<u64>,
-    #[serde(alias = "http_retry_max_backoff")]
-    http_retry_max_backoff: Option<u64>,
-}
-
 pub(crate) fn system_update_args(
-    query: SystemInstallQuery,
+    query: api::SystemInstallOptions,
     bundle: String,
     http_source: bool,
 ) -> ApiResult<Vec<String>> {
-    let (insecure_options, system_options, http_options) = query.into_parts();
     let mut args = vec!["update".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &insecure_options)?;
-    let SystemInstallOptions {
-        reboot,
-        boot_group,
-        keep_overlay,
-    } = system_options;
-    if let Some(reboot) = reboot {
+    apply_install_options(
+        &mut args,
+        query.bundle_hash.as_deref(),
+        query.root_cert.as_deref(),
+        query.insecure_skip_bundle_verification,
+        query.insecure_allow_missing_block_index,
+        query.skip_compatibility_check,
+    )?;
+    if let Some(reboot) = query.reboot {
         args.extend([
             "--reboot".to_owned(),
             system_reboot_mode(&reboot).to_owned(),
         ]);
     }
-    if let Some(boot_group) = boot_group {
+    if let Some(boot_group) = query.boot_group {
         args.extend([
             "--boot-group".to_owned(),
             required_non_empty("boot group", &boot_group)?,
         ]);
     }
-    if keep_overlay.unwrap_or(false) {
+    if query.keep_overlay.unwrap_or(false) {
         args.push("--keep-overlay".to_owned());
     }
-    apply_http_options(&mut args, &http_options, http_source)?;
+    apply_http_options(
+        &mut args,
+        query.disable_range_queries,
+        query.http_max_retries,
+        query.http_retry_initial_backoff,
+        query.http_retry_max_backoff,
+        http_source,
+    )?;
     args.push(bundle);
     Ok(args)
 }
 
 pub(crate) fn app_install_args(
-    query: AppInstallQuery,
+    query: api::AppInstallOptions,
     bundle: String,
     http_source: bool,
 ) -> ApiResult<Vec<String>> {
-    let (insecure_options, http_options) = query.into_parts();
     let mut args = vec!["apps".to_owned(), "install".to_owned()];
-    apply_install_options(&mut args, &insecure_options)?;
-    apply_http_options(&mut args, &http_options, http_source)?;
+    apply_install_options(
+        &mut args,
+        query.bundle_hash.as_deref(),
+        query.root_cert.as_deref(),
+        query.insecure_skip_bundle_verification,
+        query.insecure_allow_missing_block_index,
+        query.skip_compatibility_check,
+    )?;
+    apply_http_options(
+        &mut args,
+        None,
+        query.http_max_retries,
+        query.http_retry_initial_backoff,
+        query.http_retry_max_backoff,
+        http_source,
+    )?;
     args.push(bundle);
     Ok(args)
 }
@@ -188,127 +128,21 @@ pub(crate) fn is_http_url(value: &str) -> bool {
     matches!(uri.scheme_str(), Some("http" | "https")) && uri.authority().is_some()
 }
 
-#[derive(Debug, Default)]
-struct InsecureInstallOptions {
-    bundle_hash: Option<String>,
-    root_cert: Option<String>,
+fn apply_install_options(
+    args: &mut Vec<String>,
+    bundle_hash: Option<&str>,
+    root_cert: Option<&str>,
     insecure_skip_bundle_verification: Option<bool>,
     insecure_allow_missing_block_index: Option<bool>,
     skip_compatibility_check: Option<bool>,
-}
-
-#[derive(Debug, Default)]
-struct SystemInstallOptions {
-    reboot: Option<api::SystemRebootMode>,
-    boot_group: Option<String>,
-    keep_overlay: Option<bool>,
-}
-
-#[derive(Debug, Default)]
-struct HttpInstallOptions {
-    disable_range_queries: Option<bool>,
-    max_retries: Option<u32>,
-    initial_backoff: Option<u64>,
-    max_backoff: Option<u64>,
-}
-
-impl SystemInstallQuery {
-    fn into_parts(
-        self,
-    ) -> (
-        InsecureInstallOptions,
-        SystemInstallOptions,
-        HttpInstallOptions,
-    ) {
-        // Exhaustive destructuring makes additions fail closed until their security
-        // and transport implications have been classified.
-        let Self {
-            bundle_hash,
-            root_cert,
-            insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index,
-            skip_compatibility_check,
-            reboot,
-            boot_group,
-            keep_overlay,
-            disable_range_queries,
-            http_max_retries,
-            http_retry_initial_backoff,
-            http_retry_max_backoff,
-        } = self;
-        (
-            InsecureInstallOptions {
-                bundle_hash,
-                root_cert,
-                insecure_skip_bundle_verification,
-                insecure_allow_missing_block_index,
-                skip_compatibility_check,
-            },
-            SystemInstallOptions {
-                reboot,
-                boot_group,
-                keep_overlay,
-            },
-            HttpInstallOptions {
-                disable_range_queries,
-                max_retries: http_max_retries,
-                initial_backoff: http_retry_initial_backoff,
-                max_backoff: http_retry_max_backoff,
-            },
-        )
-    }
-}
-
-impl AppInstallQuery {
-    fn into_parts(self) -> (InsecureInstallOptions, HttpInstallOptions) {
-        // This exhaustive split preserves the same fail-closed property as the system
-        // installation contract.
-        let Self {
-            bundle_hash,
-            root_cert,
-            insecure_skip_bundle_verification,
-            insecure_allow_missing_block_index,
-            skip_compatibility_check,
-            http_max_retries,
-            http_retry_initial_backoff,
-            http_retry_max_backoff,
-        } = self;
-        (
-            InsecureInstallOptions {
-                bundle_hash,
-                root_cert,
-                insecure_skip_bundle_verification,
-                insecure_allow_missing_block_index,
-                skip_compatibility_check,
-            },
-            HttpInstallOptions {
-                disable_range_queries: None,
-                max_retries: http_max_retries,
-                initial_backoff: http_retry_initial_backoff,
-                max_backoff: http_retry_max_backoff,
-            },
-        )
-    }
-}
-
-fn apply_install_options(
-    args: &mut Vec<String>,
-    options: &InsecureInstallOptions,
 ) -> ApiResult<()> {
-    let InsecureInstallOptions {
-        bundle_hash,
-        root_cert,
-        insecure_skip_bundle_verification,
-        insecure_allow_missing_block_index,
-        skip_compatibility_check,
-    } = options;
     if insecure_skip_bundle_verification.unwrap_or(false) {
         args.push("--insecure-skip-bundle-verification".to_owned());
     }
     if insecure_allow_missing_block_index.unwrap_or(false) {
         args.push("--insecure-allow-missing-block-index".to_owned());
     }
-    apply_compatibility_override(args, *skip_compatibility_check);
+    apply_compatibility_override(args, skip_compatibility_check);
     if let Some(root_cert) = root_cert {
         args.extend([
             "--root-cert".to_owned(),
@@ -326,15 +160,12 @@ fn apply_install_options(
 
 fn apply_http_options(
     args: &mut Vec<String>,
-    options: &HttpInstallOptions,
+    disable_range_queries: Option<bool>,
+    max_retries: Option<u32>,
+    initial_backoff: Option<u64>,
+    max_backoff: Option<u64>,
     http_source: bool,
 ) -> ApiResult<()> {
-    let HttpInstallOptions {
-        disable_range_queries,
-        max_retries,
-        initial_backoff,
-        max_backoff,
-    } = options;
     let has_options = disable_range_queries.is_some()
         || max_retries.is_some()
         || initial_backoff.is_some()
@@ -399,16 +230,17 @@ mod tests {
     /// Verifies that all daemon-gated install overrides reach Rugix Ctrl.
     #[test]
     fn forwards_install_options_for_daemon_authorization() {
-        let query = InsecureInstallOptions {
-            bundle_hash: Some("sha256:abc".to_owned()),
-            root_cert: Some("/etc/rugix/root.pem".to_owned()),
-            insecure_skip_bundle_verification: Some(true),
-            insecure_allow_missing_block_index: Some(true),
-            skip_compatibility_check: Some(true),
-        };
         let mut args = Vec::new();
 
-        apply_install_options(&mut args, &query).unwrap();
+        apply_install_options(
+            &mut args,
+            Some("sha256:abc"),
+            Some("/etc/rugix/root.pem"),
+            Some(true),
+            Some(true),
+            Some(true),
+        )
+        .unwrap();
 
         assert_eq!(
             args,
@@ -424,21 +256,10 @@ mod tests {
         );
     }
 
-    /// Verifies that request contracts reject unknown installation fields.
-    #[test]
-    fn install_queries_reject_unknown_options() {
-        assert!(serde_urlencoded::from_str::<SystemInstallQuery>("futureOption=true").is_err());
-        assert!(serde_urlencoded::from_str::<AppInstallQuery>("futureOption=true").is_err());
-        assert!(serde_json::from_str::<InstallFromUrlRequest>(
-            r#"{"url":"https://example.com/update.rugixb","futureOption":true}"#
-        )
-        .is_err());
-    }
-
     /// Verifies that every system URL option is forwarded with its exact CLI spelling.
     #[test]
     fn forwards_complete_system_url_options() {
-        let query = serde_urlencoded::from_str::<SystemInstallQuery>(
+        let query = serde_urlencoded::from_str::<api::SystemInstallOptions>(
             "skipCompatibilityCheck=true&reboot=deferred&bootGroup=b&keepOverlay=true&disableRangeQueries=true&httpMaxRetries=8&httpRetryInitialBackoff=2&httpRetryMaxBackoff=45",
         )
         .unwrap();
@@ -476,7 +297,8 @@ mod tests {
     /// Verifies that HTTP-only options are rejected for streamed file uploads.
     #[test]
     fn rejects_http_options_for_file_uploads() {
-        let query = serde_urlencoded::from_str::<AppInstallQuery>("httpMaxRetries=2").unwrap();
+        let query =
+            serde_urlencoded::from_str::<api::AppInstallOptions>("httpMaxRetries=2").unwrap();
 
         assert!(app_install_args(query, "-".to_owned(), false).is_err());
     }

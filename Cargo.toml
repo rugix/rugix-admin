@@ -18,6 +18,7 @@ jiff = { version = "0.2.1", features = ["serde"] }
 mime_guess = "2.0.5"
 reportify = "0.2.2"
 serde = { version = "1.0.217", features = ["derive"] }
+serde_ignored = "0.1.14"
 serde_json = "1.0.138"
 si-observability = { version = "0.1.2", features = ["clap4"] }
 sidex = { git = "https://github.com/silitics/sidex.git" }

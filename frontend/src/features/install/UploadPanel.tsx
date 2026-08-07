@@ -1,12 +1,12 @@
 import { ChevronDown, Link, Upload } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import type { InstallOptions } from "../../api";
+import type { api } from "../../generated";
 import { Input } from "../../shared/components/Input";
 import { Notice } from "../../shared/components/Notice";
 import { Surface } from "../../shared/components/Surface";
 import { classes } from "../../shared/lib/classes";
 import { formatBytes } from "../../shared/lib/format";
-import { isNonNegativeInteger } from "../../shared/lib/numbers";
+import { parseU32, parseU64 } from "../../shared/lib/numbers";
 import { buttonClass, fieldClass, primaryButtonClass } from "../../shared/styles";
 
 export function UploadPanel({
@@ -28,8 +28,8 @@ export function UploadPanel({
   allowUrl?: boolean;
   dangerouslyInsecure: boolean;
   systemRebootEnabled?: boolean;
-  onUpload: (file: File, options: InstallOptions) => void;
-  onUrlInstall?: (url: string, options: InstallOptions) => void;
+  onUpload: (file: File, options: api.SystemInstallOptions) => void;
+  onUrlInstall?: (url: string, options: api.SystemInstallOptions) => void;
   busy: boolean;
 }) {
   const [source, setSource] = useState<"file" | "url">("file");
@@ -40,7 +40,7 @@ export function UploadPanel({
   const [skipVerification, setSkipVerification] = useState(false);
   const [allowMissingIndex, setAllowMissingIndex] = useState(false);
   const [skipCompatibilityCheck, setSkipCompatibilityCheck] = useState(false);
-  const [reboot, setReboot] = useState<InstallOptions["reboot"]>("no");
+  const [reboot, setReboot] = useState<api.SystemInstallOptions["reboot"]>("no");
   const [bootGroup, setBootGroup] = useState("");
   const [keepOverlay, setKeepOverlay] = useState(false);
   const [disableRangeQueries, setDisableRangeQueries] = useState(false);
@@ -53,7 +53,7 @@ export function UploadPanel({
     httpMaxBackoff,
   );
   const validUrl = source !== "url" || isHttpUrl(url);
-  const options: InstallOptions = {
+  const options: api.SystemInstallOptions = {
     bundleHash: dangerouslyInsecure ? nonEmpty(bundleHash) : undefined,
     rootCert: dangerouslyInsecure ? nonEmpty(rootCert) : undefined,
     insecureSkipBundleVerification: dangerouslyInsecure ? skipVerification : undefined,
@@ -185,7 +185,9 @@ export function UploadPanel({
                       className={fieldClass}
                       value={reboot}
                       onChange={(event) =>
-                        setReboot(event.target.value as InstallOptions["reboot"])
+                        setReboot(
+                          event.target.value as api.SystemInstallOptions["reboot"],
+                        )
                       }
                     >
                       <option value="no">Do not change boot selection</option>
@@ -291,9 +293,18 @@ function CheckOption({
 }
 
 function parseHttpOptions(maxRetries: string, initialBackoff: string, maxBackoff: string) {
-  const values = [maxRetries, initialBackoff, maxBackoff];
-  if (values.some((value) => value !== "" && !isNonNegativeInteger(value))) {
-    return { options: {}, error: "HTTP retry values must be non-negative integers." };
+  const retries = maxRetries === "" ? undefined : parseU32(maxRetries);
+  const initialValue = initialBackoff === "" ? undefined : parseU64(initialBackoff);
+  const maximumValue = maxBackoff === "" ? undefined : parseU64(maxBackoff);
+  if (
+    (maxRetries !== "" && retries === undefined) ||
+    (initialBackoff !== "" && initialValue === undefined) ||
+    (maxBackoff !== "" && maximumValue === undefined)
+  ) {
+    return {
+      options: {},
+      error: "HTTP retry values must be non-negative integers within their supported ranges.",
+    };
   }
   const initial = initialBackoff === "" ? 1 : Number(initialBackoff);
   const maximum = maxBackoff === "" ? 30 : Number(maxBackoff);
@@ -302,9 +313,9 @@ function parseHttpOptions(maxRetries: string, initialBackoff: string, maxBackoff
   }
   return {
     options: {
-      httpMaxRetries: maxRetries === "" ? undefined : Number(maxRetries),
-      httpRetryInitialBackoff: initialBackoff === "" ? undefined : initial,
-      httpRetryMaxBackoff: maxBackoff === "" ? undefined : maximum,
+      httpMaxRetries: retries,
+      httpRetryInitialBackoff: initialValue,
+      httpRetryMaxBackoff: maximumValue,
     },
   };
 }

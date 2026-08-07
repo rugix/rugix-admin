@@ -1,6 +1,5 @@
 import { Boxes, CircleOff, Play, RotateCcw, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
-import type { AppActionOptions } from "../../api";
 import type { api } from "../../generated";
 import { ActionGroup } from "../../shared/components/ActionGroup";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -10,7 +9,7 @@ import { Notice } from "../../shared/components/Notice";
 import { Surface } from "../../shared/components/Surface";
 import { confirmAction } from "../../shared/lib/confirm";
 import { generationLabel } from "../../shared/lib/format";
-import { isNonNegativeInteger } from "../../shared/lib/numbers";
+import { parseIdx } from "../../shared/lib/numbers";
 import { AppStatusBadge } from "../../shared/status/AppStatusBadge";
 import { buttonClass, dangerButtonClass, fieldClass } from "../../shared/styles";
 
@@ -35,9 +34,10 @@ export function AppDetailPanel({
   onSkipCompatibilityCheckChange: (enabled: boolean) => void;
   loading?: boolean;
   busy: boolean;
-  onAction: (action: api.AppAction, query?: AppActionOptions) => void;
+  onAction: (action: api.AppAction, query?: api.AppActionOptions) => void;
 }) {
   const [keepGenerations, setKeepGenerations] = useState("1");
+  const keep = parseIdx(keepGenerations);
   const isWorkloadRunning = info?.status.state === "running" || info?.status.state === "unhealthy";
   const hasActiveGeneration = info?.state.state === "active";
   const canRollback = info?.generations.some(
@@ -122,8 +122,10 @@ export function AppDetailPanel({
                   </label>
                   <button
                     className={buttonClass}
-                    disabled={!isNonNegativeInteger(keepGenerations) || busy}
-                    onClick={() => onAction("gc", { keep: Number(keepGenerations) })}
+                    disabled={keep === undefined || busy}
+                    onClick={() => {
+                      if (keep !== undefined) onAction("gc", { keep });
+                    }}
                   >
                     <Trash2 size={16} /> GC
                   </button>
