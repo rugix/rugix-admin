@@ -3,25 +3,28 @@ import { ShieldAlert } from "lucide-react";
 export function InsecureDaemonWarning() {
   return (
     <div
-      className="rounded-lg border border-danger/40 bg-danger-surface px-4 py-3 text-danger shadow-elevation-plus-1"
+      className="rounded-lg border border-danger/40 bg-danger-surface px-4 py-3"
       role="alert"
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <ShieldAlert size={20} className="mt-0.5 shrink-0" />
-        <div className="text-sm font-semibold">Rugix Ctrl security bypasses enabled</div>
-        <div className="min-w-0 flex-1 text-sm leading-6">
-          The privileged daemon allows callers to bypass Rugix Ctrl&apos;s security measures,
-          including bundle verification and compatibility checks. This configuration is suitable
-          only for development.
+      <div className="flex items-start gap-3">
+        <ShieldAlert aria-hidden="true" size={20} className="mt-0.5 shrink-0 text-danger" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-danger">
+            Rugix Ctrl security bypasses enabled
+          </div>
+          <p className="mt-1 text-sm leading-5 text-foreground">
+            The privileged daemon lets callers bypass bundle verification and compatibility checks.
+            This configuration is suitable only for development.{" "}
+            <a
+              className="whitespace-nowrap font-semibold text-danger underline underline-offset-4"
+              href="https://github.com/rugix/rugix-admin#security-model"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Security model
+            </a>
+          </p>
         </div>
-        <a
-          className="text-sm font-semibold underline underline-offset-4"
-          href="https://github.com/rugix/rugix-admin#security-model"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Security model
-        </a>
       </div>
     </div>
   );
