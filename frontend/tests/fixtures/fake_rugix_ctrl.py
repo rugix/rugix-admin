@@ -43,7 +43,7 @@ def main() -> int:
             boot = {
                 "bootFlow": "grub",
                 "activeGroup": "b",
-                "defaultGroup": "a",
+                "defaultGroup": "b" if (state / "system-committed").exists() else "a",
                 "groups": {"a": {}, "b": {}},
             }
         state_info = {"status": "Active", "dataPartition": "/dev/vda6"}
@@ -80,6 +80,11 @@ def main() -> int:
             write_json(component_conflicts_report())
         else:
             write_json(components_report())
+        return 0
+
+    if args == ["system", "commit"]:
+        (state / "system-committed").write_text("1")
+        print("fake current system committed")
         return 0
 
     if args == ["apps", "list"]:
@@ -190,7 +195,7 @@ def main() -> int:
         emit_compatibility_override(args, "system" if args[0] == "update" else "app")
         return 0
 
-    print(f"fake rugix-ctrl ran: {' '.join(args)}")
+    print(f"\x1b[32mfake rugix-ctrl ran: {' '.join(args)}\x1b[0m")
     return 0
 
 

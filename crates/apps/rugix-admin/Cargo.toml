@@ -1,0 +1,36 @@
+[package]
+name = "rugix-admin"
+description = "Rugix Admin web management interface."
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+axum = { workspace = true, features = ["multipart"] }
+clap = { workspace = true, features = ["derive"] }
+futures.workspace = true
+include_dir.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = ["serde"] }
+mime_guess.workspace = true
+reportify.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_ignored.workspace = true
+serde_json.workspace = true
+si-observability = { workspace = true, features = ["clap4"] }
+sidex.workspace = true
+sidex-serde.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true
+tracing.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+
+[build-dependencies]
+sidex-build-rs.workspace = true
+
+[dev-dependencies]
+serde_urlencoded.workspace = true

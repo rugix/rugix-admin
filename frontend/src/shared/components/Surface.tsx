@@ -21,7 +21,11 @@ export function Surface({
       {(title || action) && (
         <div className="flex min-h-13 items-center justify-between gap-3 border-b border-divider px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            {icon && <span className="text-primary">{icon}</span>}
+            {icon && (
+              <span className="text-primary" aria-hidden="true">
+                {icon}
+              </span>
+            )}
             {title && <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>}
           </div>
           {action}

@@ -5,9 +5,9 @@ import { Notice } from "../../shared/components/Notice";
 import { ProgressMeter } from "../../shared/components/ProgressMeter";
 import { Surface } from "../../shared/components/Surface";
 import { formatBytes } from "../../shared/lib/format";
-import { JobStatusBadge } from "../../shared/status/JobStatusBadge";
 import { jobProgress, progressLabel } from "./jobEvents";
 import { JobFailureNotice } from "./JobFailureNotice";
+import { JobStatusBadge } from "./JobStatusBadge";
 import type { JobLog } from "./types";
 
 export function JobLogSurface({ jobId, job, log }: { jobId?: string; job?: jobs.Job; log?: JobLog }) {

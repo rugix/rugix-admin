@@ -1,15 +1,22 @@
+import { Plus } from "lucide-react";
 import { useState } from "react";
-import { PackagePlus, Trash2 } from "lucide-react";
 import type { api } from "../../generated";
 import { Badge } from "../../shared/components/Badge";
-import { EmptyState } from "../../shared/components/EmptyState";
+import { ModalDialog } from "../../shared/components/ModalDialog";
 import { Surface } from "../../shared/components/Surface";
-import { parseIdx } from "../../shared/lib/numbers";
-import { buttonClass, fieldClass } from "../../shared/styles";
+import { classes } from "../../shared/lib/classes";
+import { buttonClass, primaryButtonClass } from "../../shared/styles";
 import { UploadPanel } from "../install/UploadPanel";
-import { AppDetailPanel } from "./AppDetailPanel";
+import { AppActionDialog, type AppApprovalAction } from "./AppActionDialog";
+import { AppDetails } from "./AppDetails";
 import { AppInventory } from "./AppInventory";
-import { GenerationTable } from "./GenerationTable";
+import { GarbageCollectDialog } from "./GarbageCollectDialog";
+
+type PendingAppAction = {
+  app: string;
+  action: AppApprovalAction;
+  generation?: api.AppGeneration["number"];
+};
 
 export function AppsPage({
   apps,
@@ -31,10 +38,14 @@ export function AppsPage({
   appLifecycleEnabled: boolean;
   selected?: api.AppSummary;
   info?: api.AppInfoResponse;
-  onSelect: (app: string) => void;
+  onSelect: (app?: string) => void;
   onUpload: (file: File, options: api.SystemInstallOptions) => void;
   onUrlInstall: (url: string, options: api.SystemInstallOptions) => void;
-  onAction: (action: api.AppAction, query?: api.AppActionOptions) => void;
+  onAction: (
+    app: string,
+    action: api.AppAction,
+    query?: api.AppActionOptions,
+  ) => void;
   onGarbageCollect: (
     keep: NonNullable<api.AppGarbageCollectionOptions["keep"]>,
   ) => void;
@@ -43,115 +54,161 @@ export function AppsPage({
   busy: boolean;
 }) {
   const appSummaries = apps ?? [];
-  const [skipCompatibilityCheck, setSkipCompatibilityCheck] = useState(false);
-  const [globalKeepGenerations, setGlobalKeepGenerations] = useState("1");
-  const globalKeep = parseIdx(globalKeepGenerations);
-  const orderedGenerations = [...(info?.generations ?? [])].sort(
-    (left, right) => Number(right.number) - Number(left.number),
-  );
-  const activeGeneration = orderedGenerations.find((generation) => generation.active);
+  const selectedInfo = info?.name === selected?.name ? info : undefined;
+  const [installDialogOpen, setInstallDialogOpen] = useState(false);
+  const [allAppsGarbageCollectDialogOpen, setAllAppsGarbageCollectDialogOpen] =
+    useState(false);
+  const [appToGarbageCollect, setAppToGarbageCollect] = useState<string>();
+  const [pendingAppAction, setPendingAppAction] = useState<PendingAppAction>();
+
+  function selectApp(app?: string) {
+    onSelect(app);
+  }
+
+  function approveAppAction(skipCompatibilityCheck: boolean) {
+    if (!pendingAppAction) return;
+    const options: api.AppActionOptions = {
+      generation: pendingAppAction.generation,
+      skipCompatibilityCheck: skipCompatibilityCheck || undefined,
+    };
+    onAction(pendingAppAction.app, pendingAppAction.action, options);
+    setPendingAppAction(undefined);
+  }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="space-y-5">
-        <Surface
-          title="Installed Apps"
-          action={
-            appLifecycleEnabled && (
-              <div className="flex items-end gap-2">
-                <label className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-foreground-muted">Keep per app</span>
-                  <span className="w-20 shrink-0">
-                    <input
-                      aria-label="Generations to keep for every app"
-                      className={fieldClass}
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={globalKeepGenerations}
-                      onChange={(event) => setGlobalKeepGenerations(event.target.value)}
-                    />
-                  </span>
-                </label>
-                <button
-                  className={buttonClass}
-                  disabled={globalKeep === undefined || busy}
-                  onClick={() => {
-                    if (globalKeep !== undefined) onGarbageCollect(globalKeep);
-                  }}
-                >
-                  <Trash2 size={16} /> GC all
-                </button>
-              </div>
+    <div className="space-y-3">
+      <div className="flex min-h-9 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate font-display text-2xl font-semibold text-foreground">
+            Installed Apps
+          </h1>
+          {apps && (
+            <Badge
+              color="bg-elevation-2 text-foreground-muted ring-divider"
+              className="hidden font-mono tabular-nums sm:inline-flex"
+            >
+              {appSummaries.length} installed
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {appLifecycleEnabled && appSummaries.length > 0 && (
+            <button
+              className={buttonClass}
+              aria-label="Garbage collect apps"
+              title="Garbage collect apps"
+              disabled={busy}
+              onClick={() => setAllAppsGarbageCollectDialogOpen(true)}
+            >
+              <span className="sm:hidden">GC</span>
+              <span className="hidden sm:inline">Garbage collect</span>
+            </button>
+          )}
+          <button
+            className={classes(primaryButtonClass, "max-sm:size-9 max-sm:px-0")}
+            aria-label="Install app"
+            title="Install app"
+            disabled={busy}
+            onClick={() => setInstallDialogOpen(true)}
+          >
+            <Plus size={16} />
+            <span className="hidden sm:inline">Install app</span>
+          </button>
+        </div>
+      </div>
+
+      <Surface bodyClassName="p-0">
+        <AppInventory
+          apps={appSummaries}
+          loaded={apps !== undefined}
+          loading={loading}
+          selected={selected?.name}
+          lifecycleEnabled={appLifecycleEnabled}
+          busy={busy}
+          onSelect={selectApp}
+          onWorkloadAction={(app, action) => onAction(app, action)}
+          onApprovalAction={(app, action) =>
+            setPendingAppAction({ app, action })
+          }
+          onGarbageCollect={setAppToGarbageCollect}
+          expandedContent={
+            selected && (
+              <AppDetails
+                key={selected.name}
+                app={selected}
+                info={selectedInfo}
+                lifecycleEnabled={appLifecycleEnabled}
+                loading={infoLoading}
+                busy={busy}
+                onActivate={(generation) =>
+                  setPendingAppAction({
+                    app: selected.name,
+                    action: "activate",
+                    generation,
+                  })
+                }
+              />
             )
           }
-          bodyClassName="p-0"
+        />
+      </Surface>
+
+      {installDialogOpen && (
+        <ModalDialog
+          title="Install app"
+          onClose={() => setInstallDialogOpen(false)}
         >
-          <AppInventory
-            apps={appSummaries}
-            loaded={apps !== undefined}
-            loading={loading}
-            selected={selected?.name}
-            onSelect={onSelect}
+          <UploadPanel
+            fileLabel="App bundle"
+            allowUrl
+            dangerouslyInsecure={dangerouslyInsecure}
+            onStarted={() => setInstallDialogOpen(false)}
+            onUpload={onUpload}
+            onUrlInstall={onUrlInstall}
+            busy={busy}
           />
-        </Surface>
+        </ModalDialog>
+      )}
 
-        <Surface
-          title={selected ? <>Generations for <span className="font-mono">{selected.name}</span></> : "Generations"}
-          action={info && <Badge color="bg-elevation-2 text-foreground-muted ring-divider" className="font-mono tabular-nums">{info.generations.length} total</Badge>}
-          bodyClassName="p-0"
-        >
-          {info ? (
-            <GenerationTable
-              generations={orderedGenerations}
-              onActivate={
-                appLifecycleEnabled && !busy
-                  ? (generation) =>
-                      onAction("activate", {
-                        generation,
-                        skipCompatibilityCheck: skipCompatibilityCheck || undefined,
-                      })
-                  : undefined
-              }
-            />
-          ) : (
-            <EmptyState
-              label={
-                selected
-                  ? infoLoading
-                    ? "Application generations are loading."
-                    : "Application generations are unavailable."
-                  : "Select an app."
-              }
-            />
-          )}
-        </Surface>
-      </div>
+      {allAppsGarbageCollectDialogOpen && (
+        <GarbageCollectDialog
+          title="Garbage collect apps"
+          description="Remove older generations from every installed app. Choose how many previously active generations to retain for each app."
+          inputLabel="Previous generations to keep per app"
+          busy={busy}
+          onClose={() => setAllAppsGarbageCollectDialogOpen(false)}
+          onGarbageCollect={(keep) => {
+            onGarbageCollect(keep);
+            setAllAppsGarbageCollectDialogOpen(false);
+          }}
+        />
+      )}
 
-      <div className="space-y-5 xl:sticky xl:top-24 xl:self-start">
-        <AppDetailPanel
-          app={selected}
-          info={info}
-          activeGeneration={activeGeneration}
-          lifecycleEnabled={appLifecycleEnabled}
-          dangerouslyInsecure={dangerouslyInsecure}
-          skipCompatibilityCheck={skipCompatibilityCheck}
-          onSkipCompatibilityCheckChange={setSkipCompatibilityCheck}
-          loading={infoLoading}
+      {appToGarbageCollect && (
+        <GarbageCollectDialog
+          title={`Garbage collect ${appToGarbageCollect}`}
+          description={`Remove older generations from ${appToGarbageCollect}. Choose how many previously active generations to retain.`}
+          inputLabel="Previous generations to keep"
           busy={busy}
-          onAction={onAction}
+          onClose={() => setAppToGarbageCollect(undefined)}
+          onGarbageCollect={(keep) => {
+            onAction(appToGarbageCollect, "gc", { keep });
+            setAppToGarbageCollect(undefined);
+          }}
         />
-        <UploadPanel
-          title="Install App Bundle"
-          fileLabel="App bundle"
-          icon={<PackagePlus size={18} />}
-          allowUrl
+      )}
+
+      {pendingAppAction && (
+        <AppActionDialog
+          app={pendingAppAction.app}
+          action={pendingAppAction.action}
+          generation={pendingAppAction.generation}
           dangerouslyInsecure={dangerouslyInsecure}
-          onUpload={onUpload}
-          onUrlInstall={onUrlInstall}
           busy={busy}
+          onClose={() => setPendingAppAction(undefined)}
+          onApprove={approveAppAction}
         />
-      </div>
+      )}
     </div>
   );
 }

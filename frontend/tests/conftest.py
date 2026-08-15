@@ -11,6 +11,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.error import URLError
 from urllib.request import urlopen
 
 import pytest
@@ -189,7 +190,7 @@ def _wait_for_url(url: str, process: subprocess.Popen, timeout: float) -> None:
             with urlopen(url, timeout=2) as response:
                 if 200 <= response.status < 500:
                     return
-        except Exception as error:
+        except (TimeoutError, URLError) as error:
             last_error = error
         time.sleep(0.25)
     raise TimeoutError(f"timed out waiting for {url}: {last_error}")

@@ -56,25 +56,22 @@ build_target() {
     # directory into the Docker container rather than using --manifest-path.
     (cd "${PROJECT_DIR}" && "${CROSS_BIN}" build --frozen --release --target "${target}" --bin rugix-admin)
 
-    # Determine the target directory (respect CARGO_TARGET_DIR).
     local target_dir="${CARGO_TARGET_DIR:-${PROJECT_DIR}/target}"
     local release_dir="${target_dir}/${target}/release"
 
-    # Generate SBOMs.
     echo "==> Generating SBOMs for ${target}"
-    (cd "${PROJECT_DIR}" && "${CARGO_CYCLONEDX_BIN}" cyclonedx -f json --target "${target}")
+    (cd "${PROJECT_DIR}" && "${CARGO_CYCLONEDX_BIN}" cyclonedx -f json --target "${target}" --manifest-path crates/apps/rugix-admin/Cargo.toml)
 
-    # Collect binaries and SBOMs into build/binaries/<target>/.
     local binaries_dir="${OUTPUT_DIR}/${target}"
     rm -rf "${binaries_dir}"
     mkdir -p "${binaries_dir}"
 
     cp "${release_dir}/rugix-admin" "${binaries_dir}/"
-    if [ -f "${PROJECT_DIR}/rugix-admin.cdx.json" ]; then
-        cp "${PROJECT_DIR}/rugix-admin.cdx.json" "${binaries_dir}/rugix-admin.cdx.json"
+    local sbom="${PROJECT_DIR}/crates/apps/rugix-admin/rugix-admin.cdx.json"
+    if [ -f "${sbom}" ]; then
+        cp "${sbom}" "${binaries_dir}/rugix-admin.cdx.json"
     fi
 
-    # Create a tarball alongside the target directory.
     tar -cf "${OUTPUT_DIR}/binaries-${target}.tar" -C "${binaries_dir}" .
 
     echo "==> Built ${target} -> ${binaries_dir}"

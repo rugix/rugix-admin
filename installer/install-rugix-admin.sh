@@ -9,6 +9,7 @@ fi
 if ! command -v apt-get >/dev/null 2>&1; then
     distro="unknown"
     if [[ -r /etc/os-release ]]; then
+        # shellcheck source=/dev/null
         . /etc/os-release
         distro="${PRETTY_NAME:-${ID:-unknown}}"
     fi

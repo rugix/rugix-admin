@@ -36,3 +36,7 @@
   checks.
 - Run the installed HTTP service as a dynamic unprivileged user and route its
   Rugix Ctrl commands through the group-restricted privileged operation daemon.
+- Organize the frontend by feature, use standard Base UI dialogs and menus, and
+  refresh device data through TanStack Query polling and job-completion events.
+- Restore buffered job output for late subscribers, assign stable SSE event IDs,
+  and normalize subprocess output before displaying it in the browser.

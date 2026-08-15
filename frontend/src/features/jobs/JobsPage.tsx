@@ -4,8 +4,8 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { Surface } from "../../shared/components/Surface";
 import { classes } from "../../shared/lib/classes";
 import { compactTime } from "../../shared/lib/format";
-import { JobStatusBadge } from "../../shared/status/JobStatusBadge";
 import { JobLogSurface } from "./JobLogSurface";
+import { JobStatusBadge } from "./JobStatusBadge";
 import type { JobLog } from "./types";
 
 export function JobsPage({

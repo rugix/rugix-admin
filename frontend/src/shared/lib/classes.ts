@@ -1,3 +1,6 @@
-export function classes(...values: Array<string | false | undefined>) {
-  return values.filter(Boolean).join(" ");
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function classes(...values: ClassValue[]) {
+  return twMerge(clsx(values));
 }

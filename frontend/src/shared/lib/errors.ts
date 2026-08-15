@@ -1,4 +1,4 @@
-import { ApiRequestError } from "../../api";
+import { ApiRequestError } from "../api/client";
 
 export function errorMessage(error: unknown) {
   if (error instanceof ApiRequestError) {

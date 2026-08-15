@@ -1,25 +1,21 @@
-import {
-  Check,
-  Database,
-  HardDrive,
-  Layers3,
-  Power,
-  RotateCcw,
-  Trash2,
-  Upload,
-} from "lucide-react";
 import { useState } from "react";
 import type { api } from "../../generated";
-import { ActionGroup } from "../../shared/components/ActionGroup";
-import { Badge } from "../../shared/components/Badge";
-import { EmptyState } from "../../shared/components/EmptyState";
+import { ModalDialog } from "../../shared/components/ModalDialog";
 import { Notice } from "../../shared/components/Notice";
 import { Surface } from "../../shared/components/Surface";
-import { confirmAction } from "../../shared/lib/confirm";
-import { compactTime, formatBytes } from "../../shared/lib/format";
-import { buttonClass, dangerButtonClass, fieldClass } from "../../shared/styles";
+import { Tooltip } from "../../shared/components/Tooltip";
+import { buttonClass, primaryButtonClass } from "../../shared/styles";
 import { UploadPanel } from "../install/UploadPanel";
+import { BootGroups } from "./BootGroups";
+import { SlotList } from "./SlotList";
+import { StatePanel } from "./StatePanel";
 import { StatusCell } from "./StatusCell";
+import { SystemActionDialog } from "./SystemActionDialog";
+
+type PendingSystemAction = {
+  action: api.SystemAction;
+  bootGroup?: string;
+};
 
 export function SystemPage({
   system,
@@ -40,288 +36,152 @@ export function SystemPage({
   onUpload: (file: File, options: api.SystemInstallOptions) => void;
   onUrlInstall: (url: string, options: api.SystemInstallOptions) => void;
 }) {
-  const [backupState, setBackupState] = useState(false);
-  const [backupName, setBackupName] = useState("");
+  const [installDialogOpen, setInstallDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingSystemAction>();
   const boot = system?.boot;
   const slots = Object.entries(system?.slots ?? {}).filter(
     (entry): entry is [string, api.SystemSlotInfo] => entry[1] !== undefined,
   );
-  const hasBootActions = (features?.systemCommit === true && boot !== undefined) ||
-    features?.systemReboot === true;
-  const hasSystemActions = hasBootActions || features?.factoryReset === true;
+  const canCommit = features?.systemCommit === true && boot !== undefined;
+  const canReboot = features?.systemReboot === true;
+  const systemUncommitted =
+    boot?.activeGroup !== undefined &&
+    boot.defaultGroup !== undefined &&
+    boot.activeGroup !== boot.defaultGroup;
+  const commitIsPrimary = systemUncommitted && canCommit;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
+        <h1 className="truncate font-display text-2xl font-semibold text-foreground">
+          System
+        </h1>
+        <div className="ml-auto flex items-center gap-2">
+          {boot && systemUncommitted && (
+            <Tooltip content="Commit the current system before installing another update.">
+              <button
+                className={buttonClass}
+                aria-label="Install system update"
+                disabled
+              >
+                Install update
+              </button>
+            </Tooltip>
+          )}
+          {boot && !systemUncommitted && (
+            <button
+              className={primaryButtonClass}
+              aria-label="Install system update"
+              title="Install system update"
+              disabled={busy}
+              onClick={() => setInstallDialogOpen(true)}
+            >
+              Install update
+            </button>
+          )}
+          {commitIsPrimary && (
+            <button
+              className={primaryButtonClass}
+              disabled={busy}
+              onClick={() =>
+                setPendingAction({
+                  action: "commit",
+                  bootGroup: boot?.activeGroup,
+                })
+              }
+            >
+              Commit
+            </button>
+          )}
+        </div>
+      </div>
+
       <Surface className="p-0">
         <div className="grid divide-y divide-divider sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
-          <StatusCell label="Boot Flow" value={boot?.bootFlow ?? "not configured"} />
-          <StatusCell label="Current" value={bootGroupLabel(boot?.activeGroup)} />
-          <StatusCell label="Default" value={bootGroupLabel(boot?.defaultGroup)} />
+          <StatusCell
+            label="Boot flow"
+            value={boot?.bootFlow ?? "not configured"}
+          />
+          <StatusCell
+            label="Current"
+            value={bootGroupLabel(boot?.activeGroup)}
+          />
+          <StatusCell
+            label="Default"
+            value={bootGroupLabel(boot?.defaultGroup)}
+          />
           <StatusCell label="State" value={stateLabel(system?.state)} />
         </div>
       </Surface>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-5">
-          {system === undefined ? (
-            <Surface title="System Updates" icon={<Upload size={18} />} bodyClassName="p-0">
-              <EmptyState
-                label={loading ? "System information is loading." : "System information is unavailable."}
-              />
-            </Surface>
-          ) : boot ? (
-            <UploadPanel
-              title="System Update"
-              fileLabel="Update bundle"
-              icon={<Upload size={18} />}
-              system
-              allowUrl
-              dangerouslyInsecure={dangerouslyInsecure}
-              systemRebootEnabled={features?.systemReboot === true}
-              onUpload={onUpload}
-              onUrlInstall={onUrlInstall}
-              busy={busy}
-            />
-          ) : (
-            <Surface title="System Updates" icon={<Upload size={18} />} bodyClassName="p-0">
-              <EmptyState label="No boot flow is configured. System updates are unavailable on this device." />
-            </Surface>
-          )}
+      {!loading && system && !boot && (
+        <Notice tone="warning">
+          No boot flow is configured. System updates are unavailable on this
+          device.
+        </Notice>
+      )}
 
-          <Surface title="System Slots" icon={<HardDrive size={18} />} bodyClassName="p-0">
-            <SlotList slots={slots} loaded={system !== undefined} loading={loading} />
-          </Surface>
-        </div>
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Surface title="System slots" bodyClassName="p-0">
+          <SlotList
+            slots={slots}
+            loaded={system !== undefined}
+            loading={loading}
+          />
+        </Surface>
 
-        <div className="space-y-5 xl:sticky xl:top-24 xl:self-start">
-          <StatePanel state={system?.state} loading={loading} />
-          <BootGroups boot={boot} />
-
-          {hasSystemActions && (
-            <Surface title="System Actions">
-              <div className="space-y-4">
-                {hasBootActions && (
-                  <ActionGroup title="Boot">
-                    {boot && features?.systemCommit && (
-                      <button className={buttonClass} disabled={busy} onClick={() => onAction("commit")}>
-                        <Check size={16} /> Commit
-                      </button>
-                    )}
-                    {features?.systemReboot && (
-                      <button
-                        className={buttonClass}
-                        disabled={busy}
-                        onClick={() => confirmAction("Reboot the device now?") && onAction("reboot")}
-                      >
-                        <Power size={16} /> Reboot
-                      </button>
-                    )}
-                    {boot && features?.systemReboot && (
-                      <button
-                        className={buttonClass}
-                        disabled={busy}
-                        onClick={() =>
-                          confirmAction("Reboot the device into the spare system now?") &&
-                          onAction("reboot-spare")
-                        }
-                      >
-                        <RotateCcw size={16} /> Reboot Spare
-                      </button>
-                    )}
-                  </ActionGroup>
-                )}
-
-                {features?.factoryReset && (
-                  <ActionGroup title="Recovery">
-                    <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
-                      <input
-                        className="size-4 accent-primary"
-                        type="checkbox"
-                        checked={backupState}
-                        onChange={(event) => setBackupState(event.target.checked)}
-                      />
-                      Preserve current state as a profile
-                    </label>
-                    {backupState && (
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-foreground-muted">
-                          Backup profile name (optional)
-                        </span>
-                        <input
-                          className={fieldClass}
-                          value={backupName}
-                          onChange={(event) => setBackupName(event.target.value)}
-                        />
-                      </label>
-                    )}
-                    <button
-                      className={dangerButtonClass}
-                      disabled={busy}
-                      onClick={() =>
-                        confirmAction(
-                          backupState
-                            ? "Factory reset and reboot after preserving the current state?"
-                            : "Factory reset and permanently discard the current state?",
-                        ) &&
-                        onAction("factory-reset", {
-                          backup: backupState || undefined,
-                          backupName: backupState ? backupName.trim() || undefined : undefined,
-                        })
-                      }
-                    >
-                      <Trash2 size={16} /> Factory Reset
-                    </button>
-                  </ActionGroup>
-                )}
-              </div>
-            </Surface>
-          )}
+        <div className="space-y-3 xl:sticky xl:top-24 xl:self-start">
+          <StatePanel
+            state={system?.state}
+            loading={loading}
+            canFactoryReset={features?.factoryReset === true}
+            busy={busy}
+            onFactoryReset={() =>
+              setPendingAction({ action: "factory-reset" })
+            }
+          />
+          <BootGroups
+            boot={boot}
+            canReboot={canReboot}
+            busy={busy}
+            onReboot={(action, bootGroup) =>
+              setPendingAction({ action, bootGroup })
+            }
+          />
         </div>
       </div>
-    </div>
-  );
-}
 
-function StatePanel({ state, loading }: { state?: api.SystemStateInfo; loading?: boolean }) {
-  return (
-    <Surface title="State Management" icon={<Database size={18} />}>
-      {state ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground-muted">Status</span>
-            <StateBadge state={state} />
-          </div>
-          <InfoRow
-            label="Data partition"
-            value={state.status === "Active" ? (state.dataPartition ?? "none") : "not available"}
+      {installDialogOpen && boot && (
+        <ModalDialog
+          title="Install system update"
+          onClose={() => setInstallDialogOpen(false)}
+        >
+          <UploadPanel
+            fileLabel="Update bundle"
+            system
+            allowUrl
+            dangerouslyInsecure={dangerouslyInsecure}
+            systemRebootEnabled={features?.systemReboot === true}
+            onStarted={() => setInstallDialogOpen(false)}
+            onUpload={onUpload}
+            onUrlInstall={onUrlInstall}
+            busy={busy}
           />
-          {state.status === "Error" && (
-            <Notice tone="danger">
-              {state.message ??
-                "Persistent state is unavailable because state management encountered an error."}
-            </Notice>
-          )}
-          {state.status === "Error" && state.ephemeral === true && (
-            <Notice tone="warning">
-              Rugix is using temporary in-memory state. Changes may not survive a reboot.
-            </Notice>
-          )}
-          {state.status === "Disabled" && (
-            <p className="text-sm text-foreground-muted">Persistent state management is disabled.</p>
-          )}
-        </div>
-      ) : (
-        <div className="text-sm text-foreground-muted">
-          {loading ? "System information is loading." : "System information is unavailable."}
-        </div>
+        </ModalDialog>
       )}
-    </Surface>
-  );
-}
 
-function StateBadge({ state }: { state: api.SystemStateInfo }) {
-  switch (state.status) {
-    case "Active":
-      return <Badge color="bg-success-surface text-success ring-success/30">active</Badge>;
-    case "Disabled":
-      return <Badge color="bg-elevation-2 text-foreground-muted ring-divider">disabled</Badge>;
-    case "Error":
-      return <Badge color="bg-danger-surface text-danger ring-danger/30">error</Badge>;
-  }
-}
-
-function BootGroups({ boot }: { boot?: api.SystemBootInfo }) {
-  if (!boot) return null;
-  const groups = Object.keys(boot.groups);
-
-  return (
-    <Surface title="Boot Groups" icon={<Layers3 size={18} />} bodyClassName="p-0">
-      {groups.length > 0 ? (
-        <div className="divide-y divide-divider">
-          {groups.map((group) => (
-            <div key={group} className="flex items-center justify-between gap-3 px-4 py-3">
-              <span className="font-mono text-sm font-semibold">{group}</span>
-              <div className="flex gap-2">
-                {group === boot.activeGroup && (
-                  <Badge color="bg-success-surface text-success ring-success/30">active</Badge>
-                )}
-                {group === boot.defaultGroup && (
-                  <Badge color="bg-info-surface text-info ring-info/30">default</Badge>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState label="No boot groups are configured." />
+      {pendingAction && (
+        <SystemActionDialog
+          action={pendingAction.action}
+          bootGroup={pendingAction.bootGroup}
+          busy={busy}
+          onClose={() => setPendingAction(undefined)}
+          onApprove={(options) => {
+            onAction(pendingAction.action, options);
+            setPendingAction(undefined);
+          }}
+        />
       )}
-    </Surface>
-  );
-}
-
-function SlotList({
-  slots,
-  loaded,
-  loading,
-}: {
-  slots: Array<[string, api.SystemSlotInfo]>;
-  loaded: boolean;
-  loading?: boolean;
-}) {
-  if (!loaded) {
-    return <EmptyState label={loading ? "System slots are loading." : "System slots are unavailable."} />;
-  }
-  if (slots.length === 0) {
-    return <EmptyState label="No system slots are configured." />;
-  }
-
-  return (
-    <div className="divide-y divide-divider">
-      {slots.map(([name, slot]) => {
-        const hashes = Object.entries(slot.hashes ?? {});
-        return (
-          <div key={name} className="space-y-3 px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-sm font-semibold">{name}</span>
-              {slot.active === true && (
-                <Badge color="bg-success-surface text-success ring-success/30">active</Badge>
-              )}
-              {slot.active === false && (
-                <Badge color="bg-elevation-2 text-foreground-muted ring-divider">inactive</Badge>
-              )}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InfoRow
-                label="Stored size"
-                value={slot.size === undefined ? "unknown" : formatBytes(Number(slot.size))}
-              />
-              <InfoRow label="Last updated" value={slot.updatedAt ? compactTime(slot.updatedAt) : "unknown"} />
-            </div>
-            {hashes.length > 0 && (
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-foreground-subtle">Hashes</div>
-                <div className="mt-2 space-y-1.5">
-                  {hashes.map(([algorithm, hash]) => (
-                    <div key={algorithm} className="grid gap-1 rounded-md bg-elevation-2 px-2.5 py-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-3">
-                      <span className="font-mono text-xs font-semibold text-foreground-muted">{algorithm}</span>
-                      <span className="break-all font-mono text-xs">{hash}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs font-semibold uppercase tracking-wide text-foreground-subtle">{label}</div>
-      <div className="mt-1 break-all font-mono text-sm">{value}</div>
     </div>
   );
 }
@@ -331,6 +191,5 @@ function bootGroupLabel(group?: string) {
 }
 
 function stateLabel(state?: api.SystemStateInfo) {
-  if (!state) return "unknown";
-  return state.status.toLowerCase();
+  return state?.status.toLowerCase() ?? "unknown";
 }

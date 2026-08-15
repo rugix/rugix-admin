@@ -17,7 +17,7 @@ export function InsecureDaemonWarning() {
             This configuration is suitable only for development.{" "}
             <a
               className="whitespace-nowrap font-semibold text-danger underline underline-offset-4"
-              href="https://github.com/rugix/rugix-admin#security-model"
+              href="https://rugix.org/docs/admin/security/"
               target="_blank"
               rel="noreferrer"
             >

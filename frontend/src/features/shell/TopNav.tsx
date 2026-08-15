@@ -1,15 +1,23 @@
-import { Boxes, ExternalLink, HardDriveUpload, Moon, Network, RefreshCw, Server, Sun } from "lucide-react";
+import {
+  Boxes,
+  ExternalLink,
+  ListTodo,
+  Moon,
+  Network,
+  RefreshCw,
+  Server,
+  Sun,
+} from "lucide-react";
 import rugixLogo from "../../assets/rugix-logo.svg";
 import type { jobs } from "../../generated";
 import { iconButtonClass } from "../../shared/styles";
-import type { Tab, Theme } from "../../types";
-import { TabButton } from "./TabButton";
+import { TabLink } from "./TabLink";
+import type { Tab, Theme } from "./types";
 
 export function TopNav({
   tab,
   theme,
   pendingJobs,
-  onTabChange,
   onThemeChange,
   onRefresh,
   refreshing,
@@ -17,7 +25,6 @@ export function TopNav({
   tab: Tab;
   theme: Theme;
   pendingJobs: jobs.Job[];
-  onTabChange: (tab: Tab) => void;
   onThemeChange: (theme: Theme) => void;
   onRefresh: () => void;
   refreshing: boolean;
@@ -34,19 +41,29 @@ export function TopNav({
           aria-label="Admin sections"
           className="order-3 flex w-full rounded-lg border border-divider bg-elevation-1 p-1 sm:order-none sm:ml-4 sm:w-auto"
         >
-          <TabButton active={tab === "system"} icon={<Server size={16} />} label="System" onClick={() => onTabChange("system")} />
-          <TabButton
+          <TabLink
+            active={tab === "system"}
+            icon={<Server size={16} />}
+            label="System"
+            tab="system"
+          />
+          <TabLink
             active={tab === "components"}
             icon={<Network size={16} />}
             label="Components"
-            onClick={() => onTabChange("components")}
+            tab="components"
           />
-          <TabButton active={tab === "apps"} icon={<Boxes size={16} />} label="Apps" onClick={() => onTabChange("apps")} />
-          <TabButton
+          <TabLink
+            active={tab === "apps"}
+            icon={<Boxes size={16} />}
+            label="Apps"
+            tab="apps"
+          />
+          <TabLink
             active={tab === "jobs"}
-            icon={<HardDriveUpload size={16} />}
+            icon={<ListTodo size={16} />}
             label={pendingJobs.length > 0 ? `Jobs ${pendingJobs.length}` : "Jobs"}
-            onClick={() => onTabChange("jobs")}
+            tab="jobs"
           />
         </nav>
 

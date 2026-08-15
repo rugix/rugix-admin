@@ -1,47 +1,42 @@
-[package]
-name = "rugix-admin"
-edition = "2021"
-version = "0.1.0"
-authors = ["Silitics GmbH <info@silitics.com>"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/rugix/rugix-admin/"
-homepage = "https://rugix.org/"
-description = "Rugix Admin web management interface."
+[workspace]
+members = ["crates/apps/*"]
+resolver = "2"
 
-[dependencies]
-axum = { version = "0.6.19", features = ["multipart"] }
-clap = { version = "4.3.17", features = ["derive"] }
+[workspace.package]
+authors = ["Silitics GmbH <info@silitics.com>"]
+edition = "2021"
+homepage = "https://rugix.org/"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/rugix/rugix-admin/"
+version = "0.1.0"
+
+[workspace.dependencies]
+axum = "0.6.19"
+clap = "4.3.17"
 futures = "0.3.31"
 include_dir = "0.7.4"
-indexmap = { version = "2.5.0", features = ["serde"] }
-jiff = { version = "0.2.1", features = ["serde"] }
+indexmap = "2.5.0"
+jiff = "0.2.1"
 mime_guess = "2.0.5"
 reportify = "0.2.2"
-serde = { version = "1.0.217", features = ["derive"] }
+serde = "1.0.217"
 serde_ignored = "0.1.14"
 serde_json = "1.0.138"
-si-observability = { version = "0.1.2", features = ["clap4"] }
+serde_urlencoded = "0.7.1"
+si-observability = "0.1.2"
 sidex = { git = "https://github.com/silitics/sidex.git" }
+sidex-build-rs = { git = "https://github.com/silitics/sidex.git" }
 sidex-serde = { git = "https://github.com/silitics/sidex.git" }
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = "1.29.1"
 toml = "0.5.11"
 tracing = "0.1"
-uuid = { version = "1.11.0", features = ["v4"] }
-
-[build-dependencies]
-sidex-build-rs = { git = "https://github.com/silitics/sidex.git" }
-
-[dev-dependencies]
-serde_urlencoded = "0.7.1"
-
-[lints.clippy]
-needless_borrows_for_generic_args = "allow"
-new_without_default = "allow"
+uuid = "1.11.0"
 
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = "z"
+overflow-checks = true
 panic = "abort"
 strip = "symbols"
-overflow-checks = true

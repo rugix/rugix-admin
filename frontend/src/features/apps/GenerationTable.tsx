@@ -1,40 +1,65 @@
-import { Play } from "lucide-react";
 import type { api } from "../../generated";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { compactTime, formatMetadata, generationLabel } from "../../shared/lib/format";
-import { GenerationStatusBadge } from "../../shared/status/GenerationStatusBadge";
+import {
+  compactTime,
+  formatMetadata,
+  generationLabel,
+} from "../../shared/lib/format";
 import { buttonClass } from "../../shared/styles";
+import { GenerationStatusBadge } from "./GenerationStatusBadge";
 
 export function GenerationTable({
   generations,
   onActivate,
+  actionsDisabled,
 }: {
   generations: api.AppGeneration[];
   onActivate?: (generation: api.AppGeneration["number"]) => void;
+  actionsDisabled?: boolean;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-divider text-sm">
+    <>
+      <table className="hidden min-w-full divide-y divide-divider text-sm lg:table">
         <thead className="bg-elevation-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground-subtle">
           <tr>
-            <th className="px-4 py-3" scope="col">Generation</th>
-            <th className="px-4 py-3" scope="col">Status</th>
-            <th className="px-4 py-3" scope="col">Created</th>
-            <th className="px-4 py-3" scope="col">Last Active</th>
-            <th className="px-4 py-3" scope="col">Metadata</th>
-            {onActivate && <th className="px-4 py-3" scope="col"><span className="sr-only">Actions</span></th>}
+            <th className="px-4 py-3" scope="col">
+              Generation
+            </th>
+            <th className="px-4 py-3" scope="col">
+              Status
+            </th>
+            <th className="px-4 py-3" scope="col">
+              Created
+            </th>
+            <th className="px-4 py-3" scope="col">
+              Last Active
+            </th>
+            <th className="px-4 py-3" scope="col">
+              Metadata
+            </th>
+            {onActivate && (
+              <th className="px-4 py-3 text-right" scope="col">
+                Actions
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-divider">
           {generations.map((generation) => (
-            <tr key={generation.number} className="bg-elevation-1">
-              <td className="px-4 py-3 font-mono font-medium">{generationLabel(generation.number)}</td>
+            <tr key={generation.number}>
+              <td className="px-4 py-3 font-mono font-medium">
+                {generationLabel(generation.number)}
+              </td>
               <td className="px-4 py-3">
                 <GenerationStatusBadge generation={generation} />
               </td>
-              <td className="px-4 py-3 text-foreground-muted">{compactTime(generation.createdAt)}</td>
               <td className="px-4 py-3 text-foreground-muted">
-                {generation.lastActivated ? compactTime(generation.lastActivated) : "never"}
+                {compactTime(generation.createdAt)}
+              </td>
+              <td className="px-4 py-3 text-foreground-muted">
+                {generation.lastActivated
+                  ? compactTime(generation.lastActivated)
+                  : "never"}
               </td>
               <td className="px-4 py-3 text-foreground-muted">
                 <GenerationMetadata metadata={generation.metadata} />
@@ -44,9 +69,10 @@ export function GenerationTable({
                   {!generation.active && generation.complete && (
                     <button
                       className={buttonClass}
+                      disabled={actionsDisabled}
                       onClick={() => onActivate(generation.number)}
                     >
-                      <Play size={16} /> Activate
+                      Activate
                     </button>
                   )}
                 </td>
@@ -55,16 +81,63 @@ export function GenerationTable({
           ))}
         </tbody>
       </table>
+
+      <div className="divide-y divide-divider lg:hidden" role="list">
+        {generations.map((generation) => (
+          <div
+            className="space-y-3 px-4 py-3"
+            key={generation.number}
+            role="listitem"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-medium">
+                  {generationLabel(generation.number)}
+                </span>
+                <GenerationStatusBadge generation={generation} />
+              </div>
+              {onActivate && !generation.active && generation.complete && (
+                <button
+                  className={buttonClass}
+                  disabled={actionsDisabled}
+                  onClick={() => onActivate(generation.number)}
+                >
+                  Activate
+                </button>
+              )}
+            </div>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
+              <dt className="text-foreground-subtle">Created</dt>
+              <dd className="text-right text-foreground-muted">
+                {compactTime(generation.createdAt)}
+              </dd>
+              <dt className="text-foreground-subtle">Last active</dt>
+              <dd className="text-right text-foreground-muted">
+                {generation.lastActivated
+                  ? compactTime(generation.lastActivated)
+                  : "never"}
+              </dd>
+              <dt className="text-foreground-subtle">Metadata</dt>
+              <dd className="min-w-0 text-right text-foreground-muted">
+                <GenerationMetadata metadata={generation.metadata} />
+              </dd>
+            </dl>
+          </div>
+        ))}
+      </div>
+
       {generations.length === 0 && <EmptyState label="No generations." />}
-    </div>
+    </>
   );
 }
 
 function GenerationMetadata({ metadata }: { metadata: unknown }) {
   if (metadata === undefined || metadata === null) return <>none</>;
   return (
-    <details>
-      <summary className="cursor-pointer font-medium text-primary hover:underline">View</summary>
+    <details className="inline-block text-left">
+      <summary className="cursor-pointer font-medium text-primary hover:underline">
+        View
+      </summary>
       <pre className="mt-2 max-w-72 overflow-auto rounded-md bg-elevation-0 p-2 font-mono text-xs text-foreground">
         {formatMetadata(metadata)}
       </pre>
