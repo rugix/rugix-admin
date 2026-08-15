@@ -307,6 +307,39 @@ def test_boot_group_reboot_buttons_target_current_and_spare_systems(
     ).to_have_count(1)
 
 
+def test_url_install_works_without_crypto_random_uuid(
+    page: Page, admin_server: AdminServer
+) -> None:
+    """Start an installation where crypto.randomUUID is unavailable."""
+    page.add_init_script(
+        """
+        Object.defineProperty(globalThis.crypto, "randomUUID", {
+          configurable: true,
+          value: undefined,
+        });
+        """
+    )
+    page.goto(admin_server.frontend_url)
+    assert page.evaluate("typeof globalThis.crypto.randomUUID") == "undefined"
+    switch_tab(page, "Apps")
+
+    page.get_by_role("button", name="Install app", exact=True).click()
+    page.get_by_role("button", name="URL").click()
+    page.get_by_label("Bundle URL").fill("https://apps.example.com/http-origin.rugixb")
+    page.get_by_role("button", name="Install", exact=True).click()
+
+    wait_for_command(
+        admin_server.fake_dir,
+        [
+            "apps",
+            "install",
+            "--insecure-skip-bundle-verification",
+            "https://apps.example.com/http-origin.rugixb",
+        ],
+    )
+    expect(page.get_by_text("succeeded").first).to_be_visible()
+
+
 def test_secure_daemon_hides_warning_and_insecure_install_options(
     page: Page, admin_server: AdminServer, committed_system
 ) -> None:

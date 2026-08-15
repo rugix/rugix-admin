@@ -42,3 +42,5 @@
   refresh device data through TanStack Query polling and job-completion events.
 - Restore buffered job output for late subscribers, assign stable SSE event IDs,
   and normalize subprocess output before displaying it in the browser.
+- Generate browser-side job IDs on HTTP origins where `crypto.randomUUID` is
+  unavailable.
