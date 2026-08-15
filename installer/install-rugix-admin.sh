@@ -25,7 +25,7 @@ fi
 GITHUB_REPO="${RUGIX_ADMIN_GITHUB_REPO:-rugix/rugix-admin}"
 REQUESTED_RUGIX_ADMIN_VERSION="${1:-${RUGIX_ADMIN_VERSION:-${RUGIX_VERSION:-latest}}}"
 RUGIX_ADMIN_ADDRESS_EXPLICIT="${RUGIX_ADMIN_ADDRESS+x}"
-RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-0.0.0.0:7492}"
+RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-127.0.0.1:7492}"
 RUGIX_ADMIN_PORT="${RUGIX_ADMIN_PORT:-${RUGIX_ADMIN_ADDRESS##*:}}"
 
 case "$(uname -m)" in
@@ -162,8 +162,12 @@ cat <<EOF
 Rugix Admin is installed and listening on ${RUGIX_ADMIN_ADDRESS}.
 
 Next steps:
-  Open Rugix Admin:
-    http://<device-address>:${RUGIX_ADMIN_PORT}/
+  Open Rugix Admin through an address that reaches the configured listener on
+  port ${RUGIX_ADMIN_PORT}. With the default settings, the local URL is:
+    http://127.0.0.1:7492/
+
+  To access Rugix Admin from another machine, configure a trusted listen
+  address and appropriate network access controls.
 
   Check the service:
     systemctl status rugix-admin.service

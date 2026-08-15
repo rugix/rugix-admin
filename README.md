@@ -33,7 +33,32 @@ device.
 
 ## Installation
 
-`installer/install-rugix-admin.sh` installs the release binary and a systemd service on apt-based systems with systemd. By default, it downloads release assets from `rugix/rugix-admin`.
+For systems built with Rugix Bakery, install Rugix Admin with the
+[`rugix-extra/rugix-admin`](https://github.com/rugix/rugix-extra/tree/main/recipes/rugix-admin)
+recipe. Add `rugix-extra` to the project repositories:
+
+```toml
+[repositories]
+rugix-extra = { git = "https://github.com/rugix/rugix-extra.git" }
+```
+
+Then include `rugix-extra/rugix-admin` and `core/rugix-ctrl-daemon` in the
+system's layer. See the
+[installation documentation](https://rugix.org/docs/admin/installation/) for a
+complete example and deployment guidance.
+
+For Yocto-based systems, the official
+[`meta-rugix`](https://github.com/rugix/meta-rugix) layer provides
+`rugix-admin` and its Rugix Ctrl daemon dependency:
+
+```bitbake
+IMAGE_INSTALL:append = " rugix-admin"
+```
+
+For evaluation or for an existing system that is not built with Rugix Bakery,
+`installer/install-rugix-admin.sh` installs the release binary and systemd
+services on apt-based systems with systemd. By default, it downloads release
+assets from `rugix/rugix-admin`.
 
 ```sh
 sudo bash installer/install-rugix-admin.sh
@@ -41,18 +66,18 @@ sudo bash installer/install-rugix-admin.sh
 
 Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a specific release. Set `RUGIX_ADMIN_GITHUB_REPO` to install from another GitHub repository.
 
-The service listens on all interfaces by default. Open
-`http://<device-address>:7492/`.
+The service listens on `127.0.0.1:7492` by default. Configure a trusted listen
+address before accessing it from another machine.
 
 ## Configuration
 
 Rugix Admin optionally reads `/etc/rugix/admin.toml` at startup. For example:
 
 ```toml
-address = "0.0.0.0:7492"
+address = "127.0.0.1:7492"
 ```
 
-When the file is absent, Rugix Admin listens on `0.0.0.0:7492`. An explicit
+When the file is absent, Rugix Admin listens on `127.0.0.1:7492`. An explicit
 `--address` command-line option overrides the value in the configuration file.
 Invalid configuration prevents the service from starting.
 
@@ -60,35 +85,17 @@ The installer only adds that command-line override to the systemd service when
 `RUGIX_ADMIN_ADDRESS` is explicitly set during installation. The installer does
 not add firewall rules.
 
-## Security Model
+## Security
 
-The installer runs Rugix Admin as a dynamic unprivileged user. Its `rugix-ctrl`
-subprocesses connect to the privileged Rugix Ctrl daemon over a Unix socket
-restricted to the `rugix-daemon` system group. `/etc/rugix/daemon.toml`
-determines whether the service may reset state, commit or reboot the system, or
-manage application lifecycle state. The installer creates this file when it is
-absent and preserves an existing configuration.
+Rugix Admin does not provide authentication or TLS. Treat anyone who can reach
+the service as a device operator, and do not expose it directly to an untrusted
+network. Restrict network access and enable only the Rugix Ctrl operations the
+device needs.
 
-Rugix Admin queries the daemon's effective policy and displays only operations
-that the daemon has enabled. Status queries and signed bundle installations are
-available by default. The daemon remains the enforcement boundary when a caller
-bypasses the UI and invokes the HTTP API directly.
-
-The HTTP API does not authenticate clients. A client that can reach the service
-can request every daemon capability enabled for Rugix Admin, so network access
-and daemon features should match the device's deployment requirements.
-
-Setting `dangerously-insecure = true` in `/etc/rugix/daemon.toml` permits
-callers to bypass Rugix Ctrl's bundle verification and compatibility checks.
-Rugix Admin displays a red warning whenever the daemon reports this mode. It is
-suitable only for development.
-
-Rugix Admin covers every operation exposed by the privileged daemon: system,
-component, and application queries; system and application bundle
-installations; state resets; system commit and reboot; and application
-activation, deactivation, workload, rollback, removal, and per-app or all-app
-garbage collection. Local recovery and low-level maintenance commands that are
-not part of the daemon protocol remain command-line operations.
+See the [secure deployment guidance](https://rugix.org/docs/admin/security/) for
+Rugix Admin and the
+[privileged daemon reference](https://rugix.org/docs/ctrl/reference/privileged-daemon/)
+for the authoritative Rugix Ctrl policy documentation.
 
 ## Development
 

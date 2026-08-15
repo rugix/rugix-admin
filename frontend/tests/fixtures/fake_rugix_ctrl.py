@@ -41,12 +41,12 @@ def main() -> int:
         boot = None
         if not (state / "no-boot-flow").exists():
             boot = {
-                "bootFlow": "grub",
+                "bootFlow": "uboot",
                 "activeGroup": "b",
                 "defaultGroup": "b" if (state / "system-committed").exists() else "a",
                 "groups": {"a": {}, "b": {}},
             }
-        state_info = {"status": "Active", "dataPartition": "/dev/vda6"}
+        state_info = {"status": "Active", "dataPartition": "/dev/mmcblk0p6"}
         if (state / "ephemeral-state-error").exists():
             state_info = {
                 "status": "Error",
@@ -56,17 +56,37 @@ def main() -> int:
         system_info = {
             "state": state_info,
             "slots": {
+                "boot-a": {
+                    "active": False,
+                    "hashes": {
+                        "sha256": "94d6a884a9a4f5d2a493ecc5e693c4e0a64e76e71f618f6ed67d127676245822"
+                    },
+                    "size": 134217728,
+                    "updatedAt": "2026-08-11T07:18:00Z",
+                },
+                "boot-b": {
+                    "active": True,
+                    "hashes": {
+                        "sha256": "4b38ff882df852d466eff80be54b8784eea72098d60feb2e13f9fc610e97f860"
+                    },
+                    "size": 134217728,
+                    "updatedAt": "2026-08-14T16:42:00Z",
+                },
                 "system-a": {
                     "active": False,
-                    "hashes": {"sha256": "a" * 64},
-                    "size": 536870912,
-                    "updatedAt": "2026-07-13T08:30:00Z",
+                    "hashes": {
+                        "sha256": "d995de6e576c66e37840f1fccfe0987bd965d291efd29b9c6ccf07ae96c5154f"
+                    },
+                    "size": 6442450944,
+                    "updatedAt": "2026-08-11T07:18:00Z",
                 },
                 "system-b": {
                     "active": True,
-                    "hashes": {"sha256": "b" * 64},
-                    "size": 536870912,
-                    "updatedAt": "2026-07-14T09:45:00Z",
+                    "hashes": {
+                        "sha256": "f256b710c74c9f837acd05b17412f477e9dbf27fb3ba2f7276deba1282023354"
+                    },
+                    "size": 6442450944,
+                    "updatedAt": "2026-08-14T16:42:00Z",
                 },
             },
         }
@@ -93,7 +113,7 @@ def main() -> int:
                 "custom-hmi": {
                     "status": {"state": "running"},
                     "generation": 5,
-                    "metadata": {"label": "Custom Line HMI"},
+                    "metadata": {"label": "Operator Console"},
                 },
                 "influxdb-historian": {
                     "status": {"state": "running"},
@@ -202,12 +222,8 @@ def main() -> int:
 def components_report() -> dict:
     apps = [
         ("custom-hmi", 5),
-        ("influxdb-historian", 4),
-        ("grafana-dashboards", 7),
         ("mqtt-broker", 3),
         ("opc-ua-adapter", 4),
-        ("node-red-flows", 6),
-        ("modbus-normalizer", 2),
     ]
     return {
         "roots": [
@@ -227,11 +243,11 @@ def components_report() -> dict:
         "components": [
             component(
                 "System",
-                "/usr/lib/rugix/components/nexigon-agent.toml",
-                "nexigon-agent",
-                "2026.7.0",
+                "/usr/lib/rugix/components/edge-os.toml",
+                "edge-os",
+                "2026.8.0",
                 provides=[
-                    {"id": "nexigon-agent", "version": "1"},
+                    {"id": "edge-os", "version": "2026.8.0"},
                     {"id": "container.workloads", "version": "1"},
                     {"id": "rugix.apps", "version": "1"},
                 ],
@@ -247,25 +263,23 @@ def components_report() -> dict:
                     {"id": "protocol.modbus.tcp", "version": "1"},
                     {"id": "protocol.mqtt", "version": "5"},
                 ],
-                requires=[{"id": "nexigon-agent"}],
+                requires=[{"id": "edge-os"}],
             ),
             component(
                 "Local",
-                "/etc/rugix/components/production-line-a.toml",
-                "plant.line-a",
+                "/etc/rugix/components/device-profile.toml",
+                "device.profile",
                 "3.4.2",
                 provides=[
-                    {"id": "cell.paint-shop", "value": "line-a"},
-                    {"id": "network.machine-lan", "value": "10.80.12.0/24"},
-                    {"id": "hmi.touch-panel", "value": "panel-12"},
+                    {"id": "network.local", "value": "ethernet"},
+                    {"id": "hardware.touch-display", "value": "panel-12"},
                 ],
-                claims=[{"id": "line-a"}],
-                requires=[{"id": "nexigon-agent"}],
+                requires=[{"id": "edge-os"}],
             ),
             component(
                 "Runtime",
                 "/run/rugix/components/can0.toml",
-                "plant.can0",
+                "hardware.can0",
                 "2.1.0",
                 provides=[
                     {"id": "hardware.can.interface", "value": "can0"},
@@ -273,7 +287,7 @@ def components_report() -> dict:
                     {"id": "sensor.vibration", "value": "paint-pump"},
                 ],
                 claims=[{"id": "hardware.can.interface.can0"}],
-                requires=[{"id": "network.machine-lan"}],
+                requires=[{"id": "network.local"}],
             ),
             component(
                 "App",
@@ -283,44 +297,15 @@ def components_report() -> dict:
                 app="custom-hmi",
                 generation=5,
                 provides=[
-                    {"id": "hmi.operator-console", "value": "line-a"},
-                    {"id": "dashboard.shift-overview"},
+                    {"id": "hmi.operator-console"},
+                    {"id": "dashboard.overview"},
                 ],
                 claims=[{"id": "tcp.port.8080"}],
                 requires=[
-                    {"id": "hmi.touch-panel"},
-                    {"id": "mqtt.topic.line-a"},
-                    {"id": "historian.query-api"},
+                    {"id": "edge-os", "version": "2026.8.0"},
+                    {"id": "hardware.touch-display", "value": "panel-12"},
+                    {"id": "mqtt.topic.telemetry"},
                 ],
-            ),
-            component(
-                "App",
-                "/var/lib/rugix/apps/influxdb-historian/generations/4/.rugix/components/app.toml",
-                "app.influxdb-historian",
-                "4.8.1",
-                app="influxdb-historian",
-                generation=4,
-                provides=[
-                    {"id": "historian.timeseries", "value": "influxdb"},
-                    {"id": "historian.query-api"},
-                    {"id": "retention.policy", "value": "180d"},
-                ],
-                claims=[{"id": "volume.historian"}],
-                requires=[{"id": "container.workloads"}, {"id": "mqtt.topic.line-a"}],
-            ),
-            component(
-                "App",
-                "/var/lib/rugix/apps/grafana-dashboards/generations/7/.rugix/components/app.toml",
-                "app.grafana-dashboards",
-                "7.1.3",
-                app="grafana-dashboards",
-                generation=7,
-                provides=[
-                    {"id": "dashboard.grafana", "value": "quality"},
-                    {"id": "dashboard.grafana", "value": "maintenance"},
-                ],
-                claims=[{"id": "tcp.port.3000"}],
-                requires=[{"id": "historian.query-api"}],
             ),
             component(
                 "App",
@@ -331,11 +316,11 @@ def components_report() -> dict:
                 generation=3,
                 provides=[
                     {"id": "mqtt.broker", "version": "5"},
-                    {"id": "mqtt.topic.line-a"},
+                    {"id": "mqtt.topic.telemetry"},
                     {"id": "mqtt.topic.maintenance"},
                 ],
                 claims=[{"id": "tcp.port.1883"}],
-                requires=[{"id": "network.machine-lan"}],
+                requires=[{"id": "network.local"}],
             ),
             component(
                 "App",
@@ -345,7 +330,7 @@ def components_report() -> dict:
                 app="opc-ua-adapter",
                 generation=4,
                 provides=[
-                    {"id": "opcua.namespace", "value": "line-a"},
+                    {"id": "opcua.namespace", "value": "device"},
                     {"id": "mqtt.publisher", "value": "opcua"},
                 ],
                 claims=[{"id": "tcp.port.4840"}],
@@ -353,36 +338,6 @@ def components_report() -> dict:
                     {"id": "protocol.opcua"},
                     {"id": "mqtt.broker"},
                     {"id": "hardware.can.interface", "value": "can0"},
-                ],
-            ),
-            component(
-                "App",
-                "/var/lib/rugix/apps/node-red-flows/generations/6/.rugix/components/app.toml",
-                "app.node-red-flows",
-                "6.3.5",
-                app="node-red-flows",
-                generation=6,
-                provides=[
-                    {"id": "workflow.nodered", "value": "andon"},
-                    {"id": "workflow.nodered", "value": "maintenance"},
-                ],
-                claims=[{"id": "tcp.port.1880"}],
-                requires=[{"id": "mqtt.broker"}, {"id": "historian.timeseries"}],
-            ),
-            component(
-                "App",
-                "/var/lib/rugix/apps/modbus-normalizer/generations/2/.rugix/components/app.toml",
-                "app.modbus-normalizer",
-                "2.9.0",
-                app="modbus-normalizer",
-                generation=2,
-                provides=[
-                    {"id": "mqtt.publisher", "value": "modbus"},
-                    {"id": "metric.normalizer", "value": "energy"},
-                ],
-                requires=[
-                    {"id": "protocol.modbus.tcp"},
-                    {"id": "mqtt.broker"},
                 ],
             ),
         ],
@@ -455,11 +410,11 @@ def component_conflicts_report() -> dict:
         {
             "kind": "UnsatisfiedRequirement",
             "component": component_ref(
-                "app.node-red-flows",
+                "app.opc-ua-adapter",
                 "App",
-                "/var/lib/rugix/apps/node-red-flows/generations/6/.rugix/components/app.toml",
-                app="node-red-flows",
-                generation=6,
+                "/var/lib/rugix/apps/opc-ua-adapter/generations/4/.rugix/components/app.toml",
+                app="opc-ua-adapter",
+                generation=4,
             ),
             "selector": {"id": "edge-os", "version": "2026.06"},
         },

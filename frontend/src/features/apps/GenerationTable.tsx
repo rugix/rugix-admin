@@ -1,11 +1,16 @@
 import type { api } from "../../generated";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { classes } from "../../shared/lib/classes";
 import {
   compactTime,
   formatMetadata,
   generationLabel,
 } from "../../shared/lib/format";
-import { buttonClass } from "../../shared/styles";
+import {
+  buttonClass,
+  columnHeaderCellClass,
+  columnHeaderClass,
+} from "../../shared/styles";
 import { GenerationStatusBadge } from "./GenerationStatusBadge";
 
 export function GenerationTable({
@@ -20,25 +25,28 @@ export function GenerationTable({
   return (
     <>
       <table className="hidden min-w-full divide-y divide-divider text-sm lg:table">
-        <thead className="bg-elevation-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground-subtle">
+        <thead className={columnHeaderClass}>
           <tr>
-            <th className="px-4 py-3" scope="col">
+            <th className={columnHeaderCellClass} scope="col">
               Generation
             </th>
-            <th className="px-4 py-3" scope="col">
+            <th className={columnHeaderCellClass} scope="col">
               Status
             </th>
-            <th className="px-4 py-3" scope="col">
+            <th className={columnHeaderCellClass} scope="col">
               Created
             </th>
-            <th className="px-4 py-3" scope="col">
+            <th className={columnHeaderCellClass} scope="col">
               Last Active
             </th>
-            <th className="px-4 py-3" scope="col">
+            <th className={columnHeaderCellClass} scope="col">
               Metadata
             </th>
             {onActivate && (
-              <th className="px-4 py-3 text-right" scope="col">
+              <th
+                className={classes(columnHeaderCellClass, "text-right")}
+                scope="col"
+              >
                 Actions
               </th>
             )}

@@ -15,11 +15,35 @@ from playwright.sync_api import Page, expect
 pytestmark = pytest.mark.e2e
 
 TAB_SWITCH_SETTLE_MS = 150
+SCREENSHOT_SETTLE_MS = 500
 
 
 def switch_tab(page: Page, name: str) -> None:
     page.get_by_role("link", name=name).click()
     page.wait_for_timeout(TAB_SWITCH_SETTLE_MS)
+
+
+def save_theme_screenshots(
+    page: Page, request: pytest.FixtureRequest, name: str
+) -> None:
+    settle_screenshot(page)
+    page.screenshot(path=str(screenshot_path(request, f"{name}-light")))
+
+    page.get_by_role("button", name="Use dark mode").click()
+    expect(page.get_by_role("button", name="Use light mode")).to_be_visible()
+    settle_screenshot(page)
+    page.screenshot(path=str(screenshot_path(request, f"{name}-dark")))
+
+    page.get_by_role("button", name="Use light mode").click()
+    expect(page.get_by_role("button", name="Use dark mode")).to_be_visible()
+    settle_screenshot(page)
+
+
+def settle_screenshot(page: Page) -> None:
+    viewport = page.viewport_size
+    if viewport is not None:
+        page.mouse.move(viewport["width"] - 1, viewport["height"] - 1)
+    page.wait_for_timeout(SCREENSHOT_SETTLE_MS)
 
 
 @pytest.fixture
@@ -43,35 +67,49 @@ def uncommitted_system(admin_server: AdminServer):
 
 
 def test_renders_all_screens_and_saves_screenshots(
-    page: Page, admin_server: AdminServer, request: pytest.FixtureRequest
+    page: Page,
+    admin_server: AdminServer,
+    request: pytest.FixtureRequest,
+    committed_system,
 ) -> None:
-    """Render each primary feature screen with representative Rugix data."""
+    """Render primary feature screens with representative data in both themes."""
+    page.add_init_script("localStorage.setItem('rugix-admin-theme', 'light')")
+    page.route(
+        "**/api/daemon",
+        lambda route: route.fulfill(
+            json={
+                "dangerouslyInsecure": False,
+                "features": {
+                    "factoryReset": True,
+                    "systemCommit": True,
+                    "systemReboot": True,
+                    "appLifecycle": True,
+                },
+            }
+        ),
+    )
     page.goto(admin_server.frontend_url)
 
     expect(page.get_by_text("Rugix Admin")).to_be_visible()
-    expect(page.get_by_text("Rugix Ctrl security bypasses enabled")).to_be_visible()
-    expect(
-        page.get_by_text(
-            "This configuration is suitable only for development.", exact=False
-        )
-    ).to_be_visible()
-    expect(page.get_by_role("link", name="Security model")).to_have_attribute(
-        "href", "https://rugix.org/docs/admin/security/"
-    )
+    expect(page.get_by_text("Rugix Ctrl security bypasses enabled")).to_have_count(0)
     expect(page.get_by_text("Current", exact=True)).to_be_visible()
     expect(page.get_by_text("Default", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Commit", exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Install system update")).to_be_enabled()
     expect(page.get_by_text("State management")).to_be_visible()
     expect(page.get_by_role("button", name="Reset", exact=True)).to_be_visible()
     expect(page.get_by_role("button", name="Reboot into boot group a")).to_be_visible()
     expect(page.get_by_role("button", name="Reboot into boot group b")).to_be_visible()
-    expect(page.get_by_text("/dev/vda6")).to_be_visible()
+    expect(page.get_by_text("/dev/mmcblk0p6")).to_be_visible()
     expect(page.get_by_text("System slots")).to_be_visible()
-    expect(page.locator("span:visible", has_text="512.0 MB").first).to_be_visible()
+    expect(page.get_by_role("button", name="boot-a", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="boot-b", exact=True)).to_be_visible()
+    expect(page.locator("span:visible", has_text="6.0 GB").first).to_be_visible()
     page.get_by_role("button", name="system-a", exact=True).click()
     expect(page.get_by_role("region", name="system-a details")).to_be_visible()
     expect(page.get_by_role("heading", name="Hashes")).to_be_visible()
     expect(page.get_by_text("sha256", exact=True)).to_be_visible()
-    page.screenshot(path=str(screenshot_path(request, "system")))
+    save_theme_screenshots(page, request, "system")
 
     switch_tab(page, "Components")
     expect(page.get_by_role("heading", name="Components", exact=True)).to_be_visible()
@@ -85,7 +123,11 @@ def test_renders_all_screens_and_saves_screenshots(
     custom_component.locator("summary").click()
     expect(custom_component.get_by_text("Conflicts", exact=True)).to_be_visible()
     expect(custom_component.get_by_text("None declared.", exact=True)).to_be_visible()
-    page.screenshot(path=str(screenshot_path(request, "components")))
+    expect(custom_component.get_by_text("edge-os", exact=True)).to_be_visible()
+    expect(
+        custom_component.get_by_text("hardware.touch-display", exact=True)
+    ).to_be_visible()
+    save_theme_screenshots(page, request, "components")
     page.get_by_role("button", name="Scanned roots", exact=False).click()
     expect(page.get_by_role("dialog", name="Scanned roots")).to_be_visible()
     expect(page.get_by_text("/etc/rugix/components", exact=True)).to_be_visible()
@@ -105,7 +147,7 @@ def test_renders_all_screens_and_saves_screenshots(
     expect(
         page.get_by_role("columnheader", name="Generation", exact=True)
     ).to_be_visible()
-    page.screenshot(path=str(screenshot_path(request, "apps")))
+    save_theme_screenshots(page, request, "apps")
 
     switch_tab(page, "Jobs")
     expect(page.get_by_text("Recent Jobs")).to_be_visible()
@@ -147,7 +189,7 @@ def test_system_without_boot_flow_shows_available_information(
 
         expect(page.get_by_text("not configured")).to_be_visible()
         expect(page.get_by_text("No boot flow is configured.")).to_be_visible()
-        expect(page.get_by_text("/dev/vda6")).to_be_visible()
+        expect(page.get_by_text("/dev/mmcblk0p6")).to_be_visible()
         expect(page.get_by_text("system-b")).to_be_visible()
         expect(page.get_by_role("button", name="More system actions")).to_have_count(0)
         expect(
@@ -328,7 +370,7 @@ def test_disabled_daemon_features_hide_privileged_actions(
 
     page.goto(admin_server.frontend_url)
 
-    expect(page.get_by_text("/dev/vda6")).to_be_visible()
+    expect(page.get_by_text("/dev/mmcblk0p6")).to_be_visible()
     expect(page.get_by_role("button", name="More system actions")).to_have_count(0)
     expect(page.get_by_role("button", name="Commit")).to_have_count(0)
     expect(page.get_by_role("button", name="Reboot into boot group a")).to_have_count(0)
@@ -393,7 +435,7 @@ def test_renders_component_conflicts_screenshot(
         ).to_be_visible()
         expect(page.get_by_text("Duplicate claim tcp.port.8080")).to_be_visible()
         expect(
-            page.get_by_text("app.node-red-flows requires edge-os 2026.06")
+            page.get_by_text("app.opc-ua-adapter requires edge-os 2026.06")
         ).to_be_visible()
         page.screenshot(path=str(screenshot_path(request, "components-conflicts")))
     finally:
@@ -575,7 +617,7 @@ def test_installs_app_from_url_and_runs_complete_lifecycle_actions(
     """Install an app URL and expose compatibility-aware activation and deactivation."""
     page.goto(admin_server.frontend_url)
     switch_tab(page, "Apps")
-    expect(page.get_by_text("Custom Line HMI")).to_be_visible()
+    expect(page.get_by_text("Operator Console")).to_be_visible()
     page.get_by_role("button", name="custom-hmi", exact=True).click()
 
     page.get_by_role("button", name="Install app", exact=True).click()

@@ -18,7 +18,12 @@ import {
 import { EmptyState } from "../../shared/components/EmptyState";
 import { classes } from "../../shared/lib/classes";
 import { generationLabel } from "../../shared/lib/format";
-import { buttonClass, iconButtonClass } from "../../shared/styles";
+import {
+  buttonClass,
+  columnHeaderCellClass,
+  columnHeaderClass,
+  iconButtonClass,
+} from "../../shared/styles";
 import { AppStatusBadge } from "./AppStatusBadge";
 
 export function AppInventory({
@@ -59,7 +64,9 @@ export function AppInventory({
       {appSummaries.length > 0 && (
         <div
           className={classes(
-            "hidden gap-3 border-b border-divider bg-elevation-2 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-foreground-subtle md:grid",
+            "hidden gap-3 border-b border-divider md:grid",
+            columnHeaderClass,
+            columnHeaderCellClass,
             gridColumns,
           )}
         >

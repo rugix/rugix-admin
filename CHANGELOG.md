@@ -31,7 +31,7 @@
   report presentation.
 - Refresh Rust and frontend dependencies to resolve known `crossbeam-epoch` and
   PostCSS advisories.
-- Listen on `0.0.0.0:7492` by default and display a red development-only
+- Listen on `127.0.0.1:7492` by default and display a red development-only
   warning when the privileged daemon permits bypassing Rugix Ctrl's security
   checks.
 - Run the installed HTTP service as a dynamic unprivileged user and route its

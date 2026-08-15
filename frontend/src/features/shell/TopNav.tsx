@@ -48,16 +48,16 @@ export function TopNav({
             tab="system"
           />
           <TabLink
-            active={tab === "components"}
-            icon={<Network size={16} />}
-            label="Components"
-            tab="components"
-          />
-          <TabLink
             active={tab === "apps"}
             icon={<Boxes size={16} />}
             label="Apps"
             tab="apps"
+          />
+          <TabLink
+            active={tab === "components"}
+            icon={<Network size={16} />}
+            label="Components"
+            tab="components"
           />
           <TabLink
             active={tab === "jobs"}

@@ -13,7 +13,7 @@ pub(crate) use crate::generated::config::Config;
 use crate::AdminResult;
 
 pub(crate) const CONFIG_PATH: &str = "/etc/rugix/admin.toml";
-pub(crate) const DEFAULT_ADDRESS: &str = "0.0.0.0:7492";
+pub(crate) const DEFAULT_ADDRESS: &str = "127.0.0.1:7492";
 
 #[tracing::instrument(level = "debug")]
 pub(crate) fn load() -> AdminResult<Config> {
@@ -133,7 +133,7 @@ mod tests {
         );
         assert_eq!(
             resolve_address(None, &Config::default()),
-            DEFAULT_ADDRESS.parse().unwrap()
+            "127.0.0.1:7492".parse().unwrap()
         );
     }
 }

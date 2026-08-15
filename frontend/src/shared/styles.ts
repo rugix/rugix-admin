@@ -12,3 +12,8 @@ export const iconButtonClass =
 
 export const fieldClass =
   "h-9 w-full rounded-md border border-frame bg-elevation-0 px-3 text-sm text-foreground transition placeholder:text-foreground-subtle focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
+
+export const columnHeaderClass =
+  "bg-elevation-2 text-left text-xs uppercase tracking-wide text-foreground-subtle";
+
+export const columnHeaderCellClass = "px-4 py-2 font-semibold";
