@@ -22,18 +22,38 @@ if ! command -v systemctl >/dev/null 2>&1; then
     exit 1
 fi
 
-GITHUB_REPO="${RUGIX_ADMIN_GITHUB_REPO:-rugix/rugix-admin}"
-REQUESTED_RUGIX_ADMIN_VERSION="${1:-${RUGIX_ADMIN_VERSION:-${RUGIX_VERSION:-latest}}}"
+RUGIX_ADMIN_GITHUB_REPO="${RUGIX_ADMIN_GITHUB_REPO:-rugix/rugix-admin}"
+RUGIX_CTRL_GITHUB_REPO="${RUGIX_CTRL_GITHUB_REPO:-${RUGIX_GITHUB_REPO:-rugix/rugix}}"
+REQUESTED_RUGIX_ADMIN_VERSION="${1:-${RUGIX_ADMIN_VERSION:-latest}}"
+REQUESTED_RUGIX_CTRL_VERSION="${RUGIX_CTRL_VERSION:-v1}"
+RUGIX_DEB_VARIANT="${RUGIX_DEB_VARIANT:-musl}"
 RUGIX_ADMIN_ADDRESS_EXPLICIT="${RUGIX_ADMIN_ADDRESS+x}"
 RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-127.0.0.1:7492}"
 RUGIX_ADMIN_PORT="${RUGIX_ADMIN_PORT:-${RUGIX_ADMIN_ADDRESS##*:}}"
 
 case "$(uname -m)" in
-    x86_64|amd64) RUGIX_TARGET="x86_64-unknown-linux-musl" ;;
-    aarch64|arm64) RUGIX_TARGET="aarch64-unknown-linux-musl" ;;
-    armv7l|armv8l) RUGIX_TARGET="armv7-unknown-linux-musleabihf" ;;
-    arm*) RUGIX_TARGET="arm-unknown-linux-musleabihf" ;;
+    x86_64|amd64)
+        RUGIX_TARGET="x86_64-unknown-linux-musl"
+        DEB_ARCH="amd64"
+        ;;
+    aarch64|arm64)
+        RUGIX_TARGET="aarch64-unknown-linux-musl"
+        DEB_ARCH="arm64"
+        ;;
+    armv7l|armv8l)
+        RUGIX_TARGET="armv7-unknown-linux-musleabihf"
+        DEB_ARCH="armhf"
+        ;;
+    arm*)
+        RUGIX_TARGET="arm-unknown-linux-musleabihf"
+        DEB_ARCH="armhf"
+        ;;
     *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+esac
+
+case "${RUGIX_DEB_VARIANT}" in
+    musl|gnu) ;;
+    *) echo "unsupported Rugix Ctrl Debian package variant: ${RUGIX_DEB_VARIANT}" >&2; exit 1 ;;
 esac
 
 if ! [[ "${RUGIX_ADMIN_PORT}" =~ ^[0-9]+$ ]] \
@@ -50,18 +70,10 @@ fi
 apt-get update
 apt-get install -y ca-certificates curl jq tar
 
-if ! command -v rugix-ctrl >/dev/null 2>&1; then
-    echo "rugix-ctrl was not found; Rugix Admin requires Rugix Ctrl with daemon support" >&2
-    exit 1
-fi
-if ! rugix-ctrl daemon --help >/dev/null 2>&1; then
-    echo "the installed rugix-ctrl does not provide daemon mode; update Rugix Ctrl first" >&2
-    exit 1
-fi
-
-resolve_rugix_admin_version() {
-    local requested="$1"
-    local api="https://api.github.com/repos/${GITHUB_REPO}/releases"
+resolve_release_version() {
+    local repo="$1"
+    local requested="$2"
+    local api="https://api.github.com/repos/${repo}/releases"
     if [[ "${requested}" == "latest" ]]; then
         curl -fsSL "${api}?per_page=100" \
             | jq -r \
@@ -81,16 +93,52 @@ resolve_rugix_admin_version() {
     fi
 }
 
-RUGIX_ADMIN_VERSION_RESOLVED="$(resolve_rugix_admin_version "${REQUESTED_RUGIX_ADMIN_VERSION}")"
+release_tag_to_deb_version() {
+    local version="${1#v}"
+    if [[ "${version}" == *-* ]]; then
+        local base="${version%%-*}"
+        local rest="${version#*-}"
+        version="${base}+${rest//-/.}"
+    fi
+    echo "${version}"
+}
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "${tmpdir}"' EXIT
+
+if ! command -v rugix-ctrl >/dev/null 2>&1; then
+    RUGIX_CTRL_VERSION_RESOLVED="$(
+        resolve_release_version "${RUGIX_CTRL_GITHUB_REPO}" "${REQUESTED_RUGIX_CTRL_VERSION}"
+    )"
+    if [[ -z "${RUGIX_CTRL_VERSION_RESOLVED}" || "${RUGIX_CTRL_VERSION_RESOLVED}" == "null" ]]; then
+        echo "unable to resolve Rugix Ctrl release version" >&2
+        exit 1
+    fi
+
+    deb_version="$(release_tag_to_deb_version "${RUGIX_CTRL_VERSION_RESOLVED}")"
+    package="rugix-ctrl-${RUGIX_DEB_VARIANT}"
+    deb="${tmpdir}/${package}_${deb_version}_${DEB_ARCH}.deb"
+    url="https://github.com/${RUGIX_CTRL_GITHUB_REPO}/releases/download/${RUGIX_CTRL_VERSION_RESOLVED}/$(basename "${deb}")"
+    echo "rugix-ctrl was not found; downloading ${url}"
+    curl -fL "${url}" -o "${deb}"
+    apt-get install -y "${deb}"
+fi
+
+if ! rugix-ctrl daemon --help >/dev/null 2>&1; then
+    echo "the installed rugix-ctrl does not provide daemon mode; update Rugix Ctrl first" >&2
+    exit 1
+fi
+
+RUGIX_ADMIN_VERSION_RESOLVED="$(
+    resolve_release_version "${RUGIX_ADMIN_GITHUB_REPO}" "${REQUESTED_RUGIX_ADMIN_VERSION}"
+)"
 if [[ -z "${RUGIX_ADMIN_VERSION_RESOLVED}" || "${RUGIX_ADMIN_VERSION_RESOLVED}" == "null" ]]; then
     echo "unable to resolve Rugix Admin release version" >&2
     exit 1
 fi
 
-tmpdir="$(mktemp -d)"
-trap 'rm -rf "${tmpdir}"' EXIT
 archive="${tmpdir}/binaries.tar"
-url="https://github.com/${GITHUB_REPO}/releases/download/${RUGIX_ADMIN_VERSION_RESOLVED}/binaries-${RUGIX_TARGET}.tar"
+url="https://github.com/${RUGIX_ADMIN_GITHUB_REPO}/releases/download/${RUGIX_ADMIN_VERSION_RESOLVED}/binaries-${RUGIX_TARGET}.tar"
 echo "downloading ${url}"
 curl -fL "${url}" -o "${archive}"
 tar -xf "${archive}" -C "${tmpdir}"

@@ -14,6 +14,8 @@
   unknown endpoints.
 - Move Rugix Admin into its own repository with a standalone installer and
   release pipeline.
+- Install a compatible Rugix Ctrl package when the standalone installer does
+  not find `rugix-ctrl` on the system.
 - Reflect the privileged daemon's effective feature and installation security
   policy in the API and frontend.
 - Use the upstream `reportify` crate for typed, contextual error reporting.

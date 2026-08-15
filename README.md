@@ -58,13 +58,18 @@ IMAGE_INSTALL:append = " rugix-admin"
 For evaluation or for an existing system that is not built with Rugix Bakery,
 `installer/install-rugix-admin.sh` installs the release binary and systemd
 services on apt-based systems with systemd. By default, it downloads release
-assets from `rugix/rugix-admin`.
+assets from `rugix/rugix-admin`. If `rugix-ctrl` is not installed, it also
+installs the latest stable Rugix Ctrl 1.x Debian package.
 
 ```sh
 sudo bash installer/install-rugix-admin.sh
 ```
 
-Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a specific release. Set `RUGIX_ADMIN_GITHUB_REPO` to install from another GitHub repository.
+Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a
+specific Rugix Admin release. Set `RUGIX_CTRL_VERSION` to select the Rugix Ctrl
+release installed when the command is absent. `RUGIX_ADMIN_GITHUB_REPO` and
+`RUGIX_CTRL_GITHUB_REPO` override the respective GitHub repositories.
+An existing `rugix-ctrl` command is preserved and must provide daemon mode.
 
 The service listens on `127.0.0.1:7492` by default. Configure a trusted listen
 address before accessing it from another machine.
