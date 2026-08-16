@@ -10,11 +10,13 @@ import {
 } from "lucide-react";
 import rugixLogo from "../../assets/rugix-logo.svg";
 import type { jobs } from "../../generated";
+import { Badge } from "../../shared/components/Badge";
 import { iconButtonClass } from "../../shared/styles";
 import { TabLink } from "./TabLink";
 import type { Tab, Theme } from "./types";
 
 export function TopNav({
+  adminVersion,
   tab,
   theme,
   pendingJobs,
@@ -22,6 +24,7 @@ export function TopNav({
   onRefresh,
   refreshing,
 }: {
+  adminVersion?: string;
   tab: Tab;
   theme: Theme;
   pendingJobs: jobs.Job[];
@@ -35,6 +38,14 @@ export function TopNav({
         <div className="flex min-w-0 items-center gap-3">
           <img src={rugixLogo} alt="" className="size-9 shrink-0" />
           <div className="truncate font-display text-base font-semibold">Rugix Admin</div>
+          {adminVersion && (
+            <Badge
+              color="bg-elevation-2 text-foreground-muted ring-divider"
+              className="font-mono"
+            >
+              {adminVersion}
+            </Badge>
+          )}
         </div>
 
         <nav

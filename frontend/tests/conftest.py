@@ -82,6 +82,7 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
     env = {
         **os.environ,
         "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+        "RUGIX_ADMIN_VERSION": "test",
         "RUGIX_ADMIN_FAKE_DIR": str(fake_dir),
     }
 

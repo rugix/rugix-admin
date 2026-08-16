@@ -49,6 +49,12 @@ pub(crate) async fn health() -> Json<api::HealthResponse> {
     Json(api::HealthResponse::new(api::HealthStatus::Ok))
 }
 
+pub(crate) async fn admin_info() -> Json<api::AdminInfoResponse> {
+    Json(api::AdminInfoResponse::new(
+        crate::RUGIX_ADMIN_VERSION.to_owned(),
+    ))
+}
+
 pub(crate) async fn daemon_info() -> ApiResult<Json<api::DaemonInfoResponse>> {
     let response = run_json_command(&["daemon", "info", "--json"]).await?;
     Ok(Json(response))

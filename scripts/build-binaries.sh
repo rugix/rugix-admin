@@ -48,10 +48,6 @@ build_target() {
 
     echo "==> Building ${target}"
 
-    local git_version
-    git_version="$(git -C "${PROJECT_DIR}" describe --tags --always 2>/dev/null || echo unknown)"
-    export RUGIX_GIT_VERSION="${git_version}"
-
     # Cross must be run from the project directory; it maps the working
     # directory into the Docker container rather than using --manifest-path.
     (cd "${PROJECT_DIR}" && "${CROSS_BIN}" build --frozen --release --target "${target}" --bin rugix-admin)
@@ -86,6 +82,18 @@ main() {
     require_tool cross "${CROSS_BIN}"
     require_tool cargo-cyclonedx "${CARGO_CYCLONEDX_BIN}"
     ensure_rugix_admin_frontend
+
+    if [ -z "${RUGIX_ADMIN_VERSION:-}" ]; then
+        local git_revision
+        git_revision="$(git -C "${PROJECT_DIR}" rev-parse --short=8 HEAD 2>/dev/null || true)"
+        if [ -n "${git_revision}" ]; then
+            export RUGIX_ADMIN_VERSION="git-${git_revision}"
+        else
+            echo "warning: failed to read Rugix Admin Git metadata; using unknown" >&2
+            export RUGIX_ADMIN_VERSION="unknown"
+        fi
+    fi
+
     mkdir -p "${OUTPUT_DIR}"
 
     for target in "$@"; do

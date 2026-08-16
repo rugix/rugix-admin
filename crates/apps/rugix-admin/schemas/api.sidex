@@ -20,6 +20,12 @@ variant HealthStatus {
     Ok,
 }
 
+/// Rugix Admin build information.
+record AdminInfoResponse {
+    /// Version injected when Rugix Admin was built.
+    version: string,
+}
+
 /// Effective privileged daemon policy used by Rugix Admin.
 record DaemonInfoResponse {
     /// Whether the daemon permits bypassing verification and compatibility checks.

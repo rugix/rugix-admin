@@ -1,7 +1,8 @@
-//! Rugix Admin HTTP service.
+//! Rugix Admin HTTP service and command-line interface.
 //!
 //! The service exposes a typed local management API, runs Rugix Ctrl operations as
-//! tracked jobs, and serves the embedded browser interface.
+//! tracked jobs, reports build information, and serves the embedded browser
+//! interface.
 
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -41,6 +42,9 @@ sidex::include_bundle!(pub rugix_admin as generated);
 use error::ApiError;
 use jobs::JobManager;
 
+/// Version reported by the CLI and HTTP API.
+pub(crate) const RUGIX_ADMIN_VERSION: &str = env!("RUGIX_ADMIN_VERSION");
+
 static FRONTEND: Dir<'_> = include_dir!("$OUT_DIR/frontend-dist");
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -53,6 +57,7 @@ reportify::new_whatever_type! {
 type AdminResult<T> = Result<T, Report<AdminError>>;
 
 #[derive(Debug, Clone, Parser)]
+#[command(version = RUGIX_ADMIN_VERSION)]
 struct Args {
     /// The address to bind to (overrides /etc/rugix/admin.toml).
     #[clap(long)]
@@ -85,6 +90,7 @@ async fn main() -> AdminResult<()> {
 
     let app = Router::new()
         .route("/api/health", get(handlers::health))
+        .route("/api/info", get(handlers::admin_info))
         .route("/api/daemon", get(handlers::daemon_info))
         .route("/api/system/info", get(handlers::system_info))
         .route("/api/components", get(handlers::components))

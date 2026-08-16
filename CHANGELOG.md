@@ -44,3 +44,5 @@
   and normalize subprocess output before displaying it in the browser.
 - Generate browser-side job IDs on HTTP origins where `crypto.randomUUID` is
   unavailable.
+- Report the injected Rugix Admin build version through the CLI and HTTP API,
+  and display it beside the product name in the frontend.

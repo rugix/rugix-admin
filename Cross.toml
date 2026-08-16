@@ -1,0 +1,2 @@
+[build.env]
+passthrough = ["RUGIX_ADMIN_VERSION"]

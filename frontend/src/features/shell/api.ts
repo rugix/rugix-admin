@@ -2,6 +2,8 @@ import type { api, events } from "../../generated";
 import { ApiRequestError, request } from "../../shared/api/client";
 
 export const ShellApi = {
+  adminInfo: () =>
+    request<api.AdminInfoResponse>("/api/info", { cache: "no-store" }),
   daemonInfo: () =>
     request<api.DaemonInfoResponse>("/api/daemon", { cache: "no-store" }),
 };

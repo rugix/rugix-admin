@@ -16,7 +16,7 @@ import { useJobTracking } from "./features/jobs/useJobTracking";
 import { InsecureDaemonWarning } from "./features/shell/InsecureDaemonWarning";
 import { TopNav } from "./features/shell/TopNav";
 import { subscribeServerEvents } from "./features/shell/api";
-import { daemonInfoQuery } from "./features/shell/queries";
+import { adminInfoQuery, daemonInfoQuery } from "./features/shell/queries";
 import { useTabRouter } from "./features/shell/tabRouter";
 import { initialTheme, storeTheme } from "./features/shell/theme";
 import type { Theme } from "./features/shell/types";
@@ -43,12 +43,14 @@ export function App() {
   const [submitting, setSubmitting] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => initialTheme());
 
+  const adminInfoResult = useQuery(adminInfoQuery);
   const daemonResult = useQuery(daemonInfoQuery);
   const systemResult = useQuery(systemInfoQuery);
   const componentsResult = useQuery(componentsQuery);
   const appsResult = useQuery(appsQuery);
   const appInfoResult = useQuery(appQuery(selectedApp));
   const jobsResult = useQuery(jobsQuery);
+  const adminInfo = adminInfoResult.data;
   const daemonInfo = daemonResult.data;
   const system = systemResult.data;
   const components = componentsResult.data;
@@ -71,6 +73,7 @@ export function App() {
   } = useJobTracking(jobsList, setOperationError);
 
   const resourceFailures = [
+    ["Rugix Admin information", adminInfoResult.error, adminInfoResult.errorUpdatedAt],
     ["daemon policy", daemonResult.error, daemonResult.errorUpdatedAt],
     ["system information", systemResult.error, systemResult.errorUpdatedAt],
     [
@@ -238,6 +241,7 @@ export function App() {
   return (
     <div className="mesh-gradient min-h-screen bg-elevation-0 text-foreground">
       <TopNav
+        adminVersion={adminInfo?.version}
         tab={tab}
         theme={theme}
         pendingJobs={pendingJobs}

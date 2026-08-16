@@ -72,7 +72,7 @@ def test_renders_all_screens_and_saves_screenshots(
     request: pytest.FixtureRequest,
     committed_system,
 ) -> None:
-    """Render primary feature screens with representative data in both themes."""
+    """Render the build badge and primary screens with representative data in both themes."""
     page.add_init_script("localStorage.setItem('rugix-admin-theme', 'light')")
     page.route(
         "**/api/daemon",
@@ -91,6 +91,7 @@ def test_renders_all_screens_and_saves_screenshots(
     page.goto(admin_server.frontend_url)
 
     expect(page.get_by_text("Rugix Admin")).to_be_visible()
+    expect(page.locator("header").get_by_text("test", exact=True)).to_be_visible()
     expect(page.get_by_text("Rugix Ctrl security bypasses enabled")).to_have_count(0)
     expect(page.get_by_text("Current", exact=True)).to_be_visible()
     expect(page.get_by_text("Default", exact=True)).to_be_visible()

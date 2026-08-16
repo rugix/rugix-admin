@@ -136,6 +136,11 @@ On NixOS or a host without Playwright browsers, run
 Run `mise run doctor` to check host dependencies. Development requires rustup
 and a C compiler. Cross-builds additionally require Docker or Podman.
 
+Builds use `RUGIX_ADMIN_VERSION` as the version reported by
+`rugix-admin --version` and the frontend. Without an explicit value, builds from
+a Git checkout use `git-` followed by a commit prefix of at least eight
+characters; builds without Git metadata report `unknown`.
+
 To deliberately update the non-Rust toolchain, update the loose specifications
 if needed and run `mise lock`; commit `mise.toml` and `mise.lock` together.
 Update Rust by changing the dated channel in `rust-toolchain.toml`.
