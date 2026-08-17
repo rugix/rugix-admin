@@ -12,9 +12,6 @@
   <a href="https://github.com/rugix/rugix-admin/actions"><img alt="Pipeline Status Badge" src="https://img.shields.io/github/actions/workflow/status/rugix/rugix-admin/check-and-lint.yml"></a>
 </p>
 
-> [!NOTE]
-> **Support:** This repository is covered by [Tier 1: Core](https://rugix.org/support-commitment/#tier-core) of the Rugix Support Commitment.
-
 Rugix Admin is an open-source local operator interface for systems running
 [Rugix Ctrl](https://github.com/rugix/rugix). It is developed by the
 [Rugix](https://rugix.org) project.
@@ -149,6 +146,12 @@ characters; builds without Git metadata report `unknown`.
 To deliberately update the non-Rust toolchain, update the loose specifications
 if needed and run `mise lock`; commit `mise.toml` and `mise.lock` together.
 Update Rust by changing the dated channel in `rust-toolchain.toml`.
+
+## Support
+
+This repository is covered by
+[Tier 1: Core](https://rugix.org/support-commitment/#tier-core) of the Rugix
+Support Commitment.
 
 ## Licensing
 
