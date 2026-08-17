@@ -5,16 +5,21 @@
     Rugix Admin
 </h1>
 <h4 align="center">
-    Web management interface for Rugix-powered systems.
+    Local web interface for Rugix-powered devices.
 </h4>
 <p align="center">
   <a href="https://github.com/rugix/rugix-admin/releases"><img alt="Rugix Admin Version Badge" src="https://img.shields.io/github/v/tag/rugix/rugix-admin?label=version"></a>
   <a href="https://github.com/rugix/rugix-admin/actions"><img alt="Pipeline Status Badge" src="https://img.shields.io/github/actions/workflow/status/rugix/rugix-admin/check-and-lint.yml"></a>
 </p>
 
-Rugix Admin is part of [Rugix](https://rugix.org), an open-source tool suite for building robust, Linux-powered products.
+> [!NOTE]
+> **Support:** This repository is covered by [Tier 1: Core](https://rugix.org/support-commitment/#tier-core) of the Rugix Support Commitment.
 
-Rugix Admin provides a browser-based management interface for systems running [Rugix Ctrl](https://github.com/rugix/rugix). It exposes system status, update operations, application management, component compatibility information, and job logs through a single self-contained service. The privileged Rugix Ctrl daemon determines which operations are available.
+Rugix Admin is an open-source local operator interface for systems running
+[Rugix Ctrl](https://github.com/rugix/rugix). It is developed by the
+[Rugix](https://rugix.org) project.
+
+It exposes system status, update operations, application management, component compatibility information, and job logs through a single self-contained service. The privileged Rugix Ctrl daemon determines which operations are available.
 
 - **System Updates**: Install uploaded or remote bundles with boot-group, overlay,
   reboot, verification, compatibility, range-request, and retry controls.
@@ -29,7 +34,7 @@ Rugix Admin provides a browser-based management interface for systems running [R
 Use Rugix Admin when you want a web interface for managing an individual Rugix
 device.
 
-[**Get started today! Build your first system and deploy an update, all in under 30 minutes!**](https://rugix.org/docs/getting-started) 🚀
+[Read the Rugix Admin documentation to install and deploy it securely.](https://rugix.org/docs/admin/)
 
 ## Installation
 
