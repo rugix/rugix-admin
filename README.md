@@ -154,6 +154,15 @@ Each binary archive contains `rugix-admin.cdx.json`, a validated CycloneDX SBOM
 that combines the target-specific Rust dependency graph with the production
 frontend dependency graph.
 
+Tagged release archives also have signed GitHub build-provenance attestations.
+After downloading an archive, verify that it was produced by this repository's
+release workflow:
+
+```sh
+gh attestation verify binaries-x86_64-unknown-linux-musl.tar \
+  --repo rugix/rugix-admin
+```
+
 To deliberately update the non-Rust toolchain, update the loose specifications
 if needed and run `mise lock`; commit `mise.toml` and `mise.lock` together.
 Update Rust by changing the dated channel in `rust-toolchain.toml`.

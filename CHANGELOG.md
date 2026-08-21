@@ -8,6 +8,7 @@
   Cargo and frontend metadata during release builds.
 - Include the production frontend and target-specific backend dependency graphs
   in a validated CycloneDX SBOM with every binary archive.
+- Publish signed build-provenance attestations for tagged release archives.
 - Run browser-driven end-to-end tests and release-version materialization checks
   in CI.
 
