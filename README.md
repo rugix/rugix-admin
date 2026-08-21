@@ -143,6 +143,17 @@ Builds use `RUGIX_ADMIN_VERSION` as the version reported by
 a Git checkout use `git-` followed by a commit prefix of at least eight
 characters; builds without Git metadata report `unknown`.
 
+The Cargo workspace and frontend package use `0.0.0` as a development
+placeholder. Release builds whose `RUGIX_ADMIN_VERSION` is a semantic version
+tag such as `v0.5.0` materialize `0.5.0` in the Cargo and frontend package
+metadata before compilation and SBOM generation. This keeps the Git tag
+authoritative while ensuring that release artifacts contain accurate package
+metadata.
+
+Each binary archive contains `rugix-admin.cdx.json`, a validated CycloneDX SBOM
+that combines the target-specific Rust dependency graph with the production
+frontend dependency graph.
+
 To deliberately update the non-Rust toolchain, update the loose specifications
 if needed and run `mise lock`; commit `mise.toml` and `mise.lock` together.
 Update Rust by changing the dated channel in `rust-toolchain.toml`.

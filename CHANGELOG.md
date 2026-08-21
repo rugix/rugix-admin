@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-08-21
+
+- Use `0.0.0` development package versions and materialize the release tag in
+  Cargo and frontend metadata during release builds.
+- Include the production frontend and target-specific backend dependency graphs
+  in a validated CycloneDX SBOM with every binary archive.
+- Run browser-driven end-to-end tests and release-version materialization checks
+  in CI.
+
 - Complete the privileged-daemon feature surface with app URL installations,
   app deactivation, state-backup reset controls, compatibility overrides,
   system target controls, and HTTP retry configuration.

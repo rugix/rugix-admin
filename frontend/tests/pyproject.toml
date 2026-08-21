@@ -5,8 +5,8 @@ description = "End-to-end tests for Rugix Admin."
 requires-python = ">=3.12"
 dependencies = [
   "pytest>=8.0",
-  # Keep this minor version aligned with nixpkgs#playwright-driver.browsers.
-  "playwright>=1.60,<1.61",
+  # Keep this minor version aligned with the pinned nixpkgs browser package.
+  "playwright>=1.61,<1.62",
   "pytest-playwright>=0.7,<0.8",
 ]
 

@@ -11,6 +11,7 @@ uv = "latest"
 "github:silitics/sidex" = { version = "latest", exe = "sidex" }
 "github:cross-rs/cross" = { version = "latest", exe = "cross", os = ["linux/x64"] }
 "github:CycloneDX/cyclonedx-rust-cargo" = { version = "latest", exe = "cargo-cyclonedx" }
+"github:CycloneDX/cyclonedx-cli" = { version = "latest", exe = "cyclonedx" }
 
 [env]
 RUST_BACKTRACE = "1"

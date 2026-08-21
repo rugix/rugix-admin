@@ -23,3 +23,47 @@ jobs:
         run: mise install --locked node pnpm github:silitics/sidex
       - name: Check
         run: mise run --skip-tools check
+
+  check-release-metadata:
+    name: Check Release Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.7.5
+          install: false
+          cache: true
+      - name: Install Rust Toolchain
+        run: rustup show active-toolchain
+      - name: Install Locked Tools
+        run: mise install --locked node python
+      - name: Materialize Test Release Version
+        run: scripts/materialize-version.py v0.5.0-test.1
+      - name: Check Package Versions
+        run: |
+          cargo metadata --locked --no-deps --format-version 1 \
+            | python -c 'import json, sys; data = json.load(sys.stdin); assert any(package["name"] == "rugix-admin" and package["version"] == "0.5.0-test.1" for package in data["packages"])'
+          python -c 'import json; assert json.load(open("frontend/package.json"))["version"] == "0.5.0-test.1"'
+
+  test-e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.7.5
+          install: false
+          cache: true
+      - name: Install Rust Toolchain
+        run: rustup show active-toolchain
+      - name: Install Locked Tools
+        run: mise install --locked node pnpm python uv github:silitics/sidex
+      - name: Install Browser
+        working-directory: frontend/tests
+        run: uv run playwright install --with-deps chromium
+      - name: Run End-to-End Tests
+        run: mise run --skip-tools test:e2e
