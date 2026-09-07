@@ -33,6 +33,11 @@ device.
 
 [Read the Rugix Admin documentation to install and deploy it securely.](https://rugix.org/docs/admin/)
 
+## Nix and NixOS
+
+The flake builds the complete service and exports a NixOS module. See
+[Nix Integration](nix/README.md) for build commands and service configuration.
+
 ## Installation
 
 For systems built with Rugix Bakery, install Rugix Admin with the

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a Nix flake with frontend and backend source builds, an overlay, and a NixOS service module.
+
 ## 0.5.0 - 2026-08-21
 
 - Move Rugix Admin into its own repository with a standalone installer and
