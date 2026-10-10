@@ -76,7 +76,10 @@ Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a
 specific Rugix Admin release. Set `RUGIX_CTRL_VERSION` to select the Rugix Ctrl
 release installed when the command is absent. `RUGIX_ADMIN_GITHUB_REPO` and
 `RUGIX_CTRL_GITHUB_REPO` override the respective GitHub repositories.
-An existing `rugix-ctrl` command is preserved and must provide daemon mode.
+An existing `rugix-ctrl` command is preserved and must provide daemon mode. It
+must also report the application lifecycle state as `lifecycle` in
+`rugix-ctrl apps info`, which Rugix Ctrl does in releases after 1.3.0. Reading
+an application's details fails against earlier releases.
 
 The service listens on `127.0.0.1:7492` by default. Configure a trusted listen
 address before accessing it from another machine.

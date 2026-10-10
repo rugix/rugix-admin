@@ -38,7 +38,7 @@ export function AppDetails({
   return (
     <>
       <div className="space-y-3 border-b border-divider px-4 py-3 empty:hidden">
-        <AppStateNotice state={info.state} />
+        <AppStateNotice state={info.lifecycle} />
       </div>
       <GenerationTable
         generations={orderedGenerations}
@@ -49,7 +49,11 @@ export function AppDetails({
   );
 }
 
-function AppStateNotice({ state }: { state: api.AppInfoResponse["state"] }) {
+function AppStateNotice({
+  state,
+}: {
+  state: api.AppInfoResponse["lifecycle"];
+}) {
   switch (state.state) {
     case "inactive":
     case "active":
