@@ -201,6 +201,7 @@ pub(crate) async fn list_apps() -> ApiResult<Json<api::AppsListResponse>> {
     struct CliAppEntry {
         status: apps::AppStatus,
         generation: Option<u64>,
+        orchestrator: Option<String>,
         metadata: Option<api::JsonValue>,
     }
 
@@ -210,6 +211,7 @@ pub(crate) async fn list_apps() -> ApiResult<Json<api::AppsListResponse>> {
         .map(|(name, entry)| {
             api::AppSummary::new(name, entry.status)
                 .with_generation(entry.generation)
+                .with_orchestrator(entry.orchestrator)
                 .with_metadata(entry.metadata)
         })
         .collect();

@@ -62,7 +62,9 @@ export function GenerationTable({
                 <GenerationStatusBadge generation={generation} />
               </td>
               <td className="px-4 py-3 text-foreground-muted">
-                {compactTime(generation.createdAt)}
+                {generation.createdAt
+                  ? compactTime(generation.createdAt)
+                  : "unknown"}
               </td>
               <td className="px-4 py-3 text-foreground-muted">
                 {generation.lastActivated
@@ -117,7 +119,9 @@ export function GenerationTable({
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
               <dt className="text-foreground-subtle">Created</dt>
               <dd className="text-right text-foreground-muted">
-                {compactTime(generation.createdAt)}
+                {generation.createdAt
+                  ? compactTime(generation.createdAt)
+                  : "unknown"}
               </dd>
               <dt className="text-foreground-subtle">Last active</dt>
               <dd className="text-right text-foreground-muted">

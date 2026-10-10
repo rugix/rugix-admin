@@ -431,6 +431,8 @@ record AppSummary {
     status: AppStatus,
     /// Current generation, if any.
     generation?: u64,
+    /// Orchestrator declared by the current generation, if any.
+    orchestrator?: string,
     /// User-supplied metadata for the current generation.
     metadata?: JsonValue,
 }
@@ -441,8 +443,12 @@ record AppInfoResponse {
     name: string,
     /// Live workload status.
     status: AppStatus,
-    /// Persisted app state.
-    state: AppState,
+    /// Persisted lifecycle state.
+    lifecycle: AppState,
+    /// Orchestrator declared by the active generation, if any.
+    orchestrator?: string,
+    /// Desired configuration revision, applied on the next activation, if any.
+    desired_configuration_revision?: u64,
     /// Installed generations.
     generations: [AppGeneration],
 }
@@ -451,14 +457,16 @@ record AppInfoResponse {
 record AppGeneration {
     /// Generation number.
     number: u64,
-    /// Creation timestamp.
-    created_at: string,
+    /// Creation timestamp, absent when generation metadata is missing.
+    created_at?: string,
     /// Whether the generation is complete.
     complete: bool,
     /// Whether the generation is currently active.
     active: bool,
     /// Timestamp of the last successful activation, if any.
     last_activated?: string,
+    /// Configuration revision used for the last successful activation, if any.
+    configuration_revision?: u64,
     /// User-supplied generation metadata.
     metadata?: JsonValue,
 }

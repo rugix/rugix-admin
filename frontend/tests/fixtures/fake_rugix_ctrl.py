@@ -113,21 +113,25 @@ def main() -> int:
                 "custom-hmi": {
                     "status": {"state": "running"},
                     "generation": 5,
+                    "orchestrator": "docker-compose",
                     "metadata": {"label": "Operator Console"},
                 },
                 "influxdb-historian": {
                     "status": {"state": "running"},
                     "generation": 4,
+                    "orchestrator": "docker-compose",
                     "metadata": {"label": "InfluxDB Historian"},
                 },
                 "grafana-dashboards": {
                     "status": {"state": "running"},
                     "generation": 7,
+                    "orchestrator": "docker-compose",
                     "metadata": {"label": "Grafana Dashboards"},
                 },
                 "mqtt-broker": {
                     "status": {"state": "running"},
                     "generation": 3,
+                    "orchestrator": "docker-compose",
                     "metadata": {"label": "MQTT Broker"},
                 },
                 "opc-ua-adapter": {
@@ -136,16 +140,19 @@ def main() -> int:
                         "message": "OPC UA endpoint health check failed",
                     },
                     "generation": 4,
+                    "orchestrator": "binary",
                     "metadata": {"label": "OPC UA Adapter"},
                 },
                 "node-red-flows": {
                     "status": {"state": "running"},
                     "generation": 6,
+                    "orchestrator": "docker-compose",
                     "metadata": {"label": "Node-RED Flows"},
                 },
                 "modbus-normalizer": {
                     "status": {"state": "stopped"},
                     "generation": 2,
+                    "orchestrator": "generic",
                     "metadata": {"label": "Modbus Normalizer"},
                 },
             }
@@ -498,6 +505,7 @@ def app_info(name: str) -> dict:
             "complete": True,
             "active": True,
             "lastActivated": "2026-06-30T08:00:00Z",
+            "configurationRevision": 1,
             "metadata": {"label": name},
         }
     ]
@@ -520,7 +528,13 @@ def app_info(name: str) -> dict:
     return {
         "name": name,
         "status": status,
-        "state": {"state": "active", "generation": active_generation},
+        "lifecycle": {
+            "state": "active",
+            "generation": active_generation,
+            "configurationRevision": 1,
+        },
+        "orchestrator": "docker-compose",
+        "desiredConfigurationRevision": 1,
         "generations": generations,
     }
 
