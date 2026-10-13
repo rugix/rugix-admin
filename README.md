@@ -150,6 +150,10 @@ mise run test:e2e
 mise run build x86_64-unknown-linux-musl
 ```
 
+Browser tests start the frontend with `pnpm run dev`, which generates the
+Sidex bindings before starting Vite. They work from a fresh checkout without
+running `mise run codegen` first.
+
 On NixOS or a host without Playwright browsers, run
 `cd frontend && pnpm run test:e2e:nix` instead.
 
