@@ -128,16 +128,6 @@ mise install
 mise tasks
 ```
 
-The Rust runtime, frontend runtime, and binding generator use Sidex 0.4.0.
-`mise run codegen` regenerates frontend bindings; Cargo generates Rust bindings.
-Use generated `is` and `check` helpers when reading API responses or events and
-`@sidex/types` helpers when converting numeric values. JSON represents 64-bit
-integers as numbers or decimal strings beyond `Number.MAX_SAFE_INTEGER`.
-
-Malformed API responses and events produce explicit frontend errors. An invalid
-job event closes that job's stream; invalid global events report an error while
-polling continues. Invalid HTTP error bodies fall back to the HTTP status.
-
 Common workflows are:
 
 ```sh
@@ -149,10 +139,6 @@ mise run codegen
 mise run test:e2e
 mise run build x86_64-unknown-linux-musl
 ```
-
-Browser tests start the frontend with `pnpm run dev`, which generates the
-Sidex bindings before starting Vite. They work from a fresh checkout without
-running `mise run codegen` first.
 
 On NixOS or a host without Playwright browsers, run
 `cd frontend && pnpm run test:e2e:nix` instead.
