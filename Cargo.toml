@@ -21,13 +21,11 @@ jiff = "0.2.1"
 mime_guess = "2.0.5"
 reportify = "0.2.2"
 serde = "1.0.217"
-serde_ignored = "0.1.14"
 serde_json = "1.0.138"
 serde_urlencoded = "0.7.1"
 si-observability = "0.1.2"
-sidex = { git = "https://github.com/silitics/sidex.git" }
-sidex-build-rs = { git = "https://github.com/silitics/sidex.git" }
-sidex-serde = { git = "https://github.com/silitics/sidex.git" }
+sidex = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.0", features = ["serde-1", "serde_json-1"] }
+sidex-build-rs = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.0" }
 tokio = "1.29.1"
 toml = "0.5.11"
 tracing = "0.1"

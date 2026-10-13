@@ -1,3 +1,4 @@
+import { U64 } from "@sidex/types";
 import { Terminal } from "lucide-react";
 import type { jobs } from "../../generated";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -26,7 +27,7 @@ export function JobLogSurface({ jobId, job, log }: { jobId?: string; job?: jobs.
               {notice.message}
             </Notice>
           ))}
-          <ProgressMeter label={progressLabel(log)} percent={progressPercent} fallback={log?.uploadedBytes ? `${formatBytes(Number(log.uploadedBytes))} uploaded` : undefined} />
+          <ProgressMeter label={progressLabel(log)} percent={progressPercent} fallback={log?.uploadedBytes ? `${formatBytes(U64.toNumber(log.uploadedBytes))} uploaded` : undefined} />
           <pre className="h-[min(58vh,560px)] overflow-auto rounded-md border border-divider bg-elevation-0 p-3 font-mono text-xs leading-5 text-foreground">
             {(log?.lines.length ? log.lines : ["No output."]).join("\n")}
           </pre>

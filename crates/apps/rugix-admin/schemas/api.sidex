@@ -4,8 +4,7 @@ import apps::AppState
 import apps::AppStatus
 import jobs::Job
 
-#[rust(type = "::serde_json::Value")]
-opaque JsonValue
+alias JsonValue: json
 
 /// Health response.
 record HealthResponse {

@@ -1,3 +1,4 @@
+import { U64 } from "@sidex/types";
 import type { api } from "../../generated";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { Notice } from "../../shared/components/Notice";
@@ -32,7 +33,7 @@ export function AppDetails({
   }
 
   const orderedGenerations = [...info.generations].sort(
-    (left, right) => Number(right.number) - Number(left.number),
+    (left, right) => U64.toNumber(right.number) - U64.toNumber(left.number),
   );
 
   return (

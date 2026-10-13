@@ -1,3 +1,4 @@
+import { F64 } from "@sidex/types";
 import type { events, jobs } from "../../generated";
 import type { JobLog } from "./types";
 
@@ -69,7 +70,7 @@ export function updateBrowserProgress(current: Record<string, JobLog>, jobId: st
 }
 
 export function jobProgress(log?: JobLog) {
-  if (log?.installProgress !== undefined) return Math.round(Number(log.installProgress));
+  if (log?.installProgress !== undefined) return Math.round(F64.toNumber(log.installProgress));
   if (!log?.browserUpload) return undefined;
   return Math.round((log.browserUpload.sent / Math.max(log.browserUpload.total, 1)) * 100);
 }

@@ -1,12 +1,13 @@
-import type { api } from "../../generated";
+import { api } from "../../generated";
 import { queryString, request } from "../../shared/api/client";
 import { installQuery, uploadBundle } from "../../shared/api/install";
 
 export const SystemApi = {
-  info: () => request<api.SystemInfoResponse>("/api/system/info"),
+  info: () => request("/api/system/info", api.SystemInfoResponse),
   action: (action: api.SystemAction, query?: api.SystemActionOptions) =>
-    request<api.JobResponse>(
+    request(
       `/api/system/actions/${encodeURIComponent(action)}${queryString(query)}`,
+      api.JobResponse,
       { method: "POST" },
     ),
 };
@@ -31,8 +32,9 @@ export function installSystemUpdateFromUrl(
   options: api.SystemInstallOptions,
 ) {
   const body: api.InstallFromUrlRequest = { url };
-  return request<api.JobResponse>(
+  return request(
     `/api/system/update/${encodeURIComponent(jobId)}/url${installQuery(options, options)}`,
+    api.JobResponse,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

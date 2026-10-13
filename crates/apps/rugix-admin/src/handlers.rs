@@ -130,7 +130,10 @@ pub(crate) async fn system_action(
 ) -> ApiResult<Json<api::JobResponse>> {
     let Path(action) = path.map_err(invalid_path)?;
     let Query(query) = query.map_err(invalid_query)?;
-    let backup_name = required_non_empty_option("factory-reset backup name", query.backup_name)?;
+    let backup_name = required_non_empty_option(
+        "factory-reset backup name",
+        query.backup_name.map(Into::into),
+    )?;
     if !matches!(action, api::SystemAction::FactoryReset)
         && (query.backup.unwrap_or(false) || backup_name.is_some())
     {
@@ -192,7 +195,7 @@ pub(crate) async fn system_action(
         .jobs
         .create(None, spec.title, spec.kind, spec.target)
         .await?;
-    spawn_command_job(state.jobs.clone(), job.id.clone(), spec.args);
+    spawn_command_job(state.jobs.clone(), job.id.clone().into(), spec.args);
     Ok(Json(api::JobResponse::new(job)))
 }
 
@@ -211,7 +214,7 @@ pub(crate) async fn list_apps() -> ApiResult<Json<api::AppsListResponse>> {
         .map(|(name, entry)| {
             api::AppSummary::new(name, entry.status)
                 .with_generation(entry.generation)
-                .with_orchestrator(entry.orchestrator)
+                .with_orchestrator(entry.orchestrator.map(Into::into))
                 .with_metadata(entry.metadata)
         })
         .collect();
@@ -354,7 +357,7 @@ pub(crate) async fn app_action(
             Some(app),
         )
         .await?;
-    spawn_command_job(state.jobs.clone(), job.id.clone(), args);
+    spawn_command_job(state.jobs.clone(), job.id.clone().into(), args);
     Ok(Json(api::JobResponse::new(job)))
 }
 
@@ -376,12 +379,12 @@ pub(crate) async fn garbage_collect_apps(
             None,
         )
         .await?;
-    spawn_command_job(state.jobs.clone(), job.id.clone(), args);
+    spawn_command_job(state.jobs.clone(), job.id.clone().into(), args);
     Ok(Json(api::JobResponse::new(job)))
 }
 
 pub(crate) async fn list_jobs(State(state): State<ServerState>) -> Json<api::JobsListResponse> {
-    Json(api::JobsListResponse::new(state.jobs.list().await))
+    Json(api::JobsListResponse::new(state.jobs.list().await.into()))
 }
 
 pub(crate) async fn get_job(
