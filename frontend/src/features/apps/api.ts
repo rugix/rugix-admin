@@ -1,22 +1,19 @@
-import type { api } from "../../generated";
+import { api } from "../../generated";
 import { queryString, request } from "../../shared/api/client";
 import { installQuery, uploadBundle } from "../../shared/api/install";
 
 export const AppsApi = {
-  list: () => request<api.AppsListResponse>("/api/apps"),
+  list: () => request("/api/apps", api.AppsListResponse),
   info: (name: string) =>
-    request<api.AppInfoResponse>(`/api/apps/${encodeURIComponent(name)}`),
-  action: (
-    app: string,
-    action: api.AppAction,
-    query?: api.AppActionOptions,
-  ) =>
-    request<api.JobResponse>(
+    request(`/api/apps/${encodeURIComponent(name)}`, api.AppInfoResponse),
+  action: (app: string, action: api.AppAction, query?: api.AppActionOptions) =>
+    request(
       `/api/apps/${encodeURIComponent(app)}/actions/${encodeURIComponent(action)}${queryString(query)}`,
+      api.JobResponse,
       { method: "POST" },
     ),
   garbageCollect: (query?: api.AppGarbageCollectionOptions) =>
-    request<api.JobResponse>(`/api/apps/actions/gc${queryString(query)}`, {
+    request(`/api/apps/actions/gc${queryString(query)}`, api.JobResponse, {
       method: "POST",
     }),
 };
@@ -27,8 +24,9 @@ export function installAppBundleFromUrl(
   options: api.AppInstallOptions,
 ) {
   const body: api.InstallFromUrlRequest = { url };
-  return request<api.JobResponse>(
+  return request(
     `/api/apps/install/${encodeURIComponent(jobId)}/url${installQuery(options)}`,
+    api.JobResponse,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

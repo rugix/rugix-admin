@@ -91,8 +91,8 @@ impl ApiError {
         let stdout = sanitize_terminal_bytes(&output.stdout);
         let stderr = sanitize_terminal_bytes(&output.stderr);
         let details = api::CommandFailureDetails::new(output.status.to_string())
-            .with_stdout(non_empty(stdout.clone()))
-            .with_stderr(non_empty(stderr.clone()));
+            .with_stdout(non_empty(stdout.clone()).map(Into::into))
+            .with_stderr(non_empty(stderr.clone()).map(Into::into));
         let error = ApiErrorData {
             status: StatusCode::BAD_GATEWAY,
             code: "command-failed",

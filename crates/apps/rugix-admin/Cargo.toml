@@ -19,11 +19,9 @@ jiff = { workspace = true, features = ["serde"] }
 mime_guess.workspace = true
 reportify.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_ignored.workspace = true
 serde_json.workspace = true
 si-observability = { workspace = true, features = ["clap4"] }
-sidex.workspace = true
-sidex-serde.workspace = true
+sidex = { workspace = true, features = ["toml"] }
 tokio = { workspace = true, features = ["full"] }
 toml.workspace = true
 tracing.workspace = true

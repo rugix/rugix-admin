@@ -5,7 +5,6 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::Path;
 
-use reportify::whatever;
 use reportify::ErrorExt;
 use reportify::ResultExt;
 
@@ -46,19 +45,8 @@ fn load_from(path: &Path) -> AdminResult<Config> {
 
 /// Parses the Sidex-defined configuration while rejecting misspelled fields.
 fn parse_config(content: &str) -> AdminResult<Config> {
-    let mut unknown_field = None;
-    let mut deserializer = toml::Deserializer::new(content);
-    let config: Config = serde_ignored::deserialize(&mut deserializer, |path| {
-        unknown_field.get_or_insert_with(|| path.to_string());
-    })
-    .whatever("unable to decode Rugix Admin configuration")?;
-    if let Some(unknown_field) = unknown_field {
-        return Err(
-            whatever!("Rugix Admin configuration contains an unknown field")
-                .field("field", unknown_field),
-        );
-    }
-    Ok(config)
+    sidex::formats::toml::from_str_strict(content)
+        .whatever("unable to parse Rugix Admin configuration")
 }
 
 #[cfg(test)]
@@ -78,7 +66,7 @@ mod tests {
     fn rejects_unknown_fields() {
         let error = parse_config("adress = \"127.0.0.1:9000\"").unwrap_err();
 
-        assert!(error.to_string().contains("unknown field"));
+        assert!(format!("{error:?}").contains("unknown field `adress`"));
     }
 
     /// Verifies that parse failures retain both their path and source error.

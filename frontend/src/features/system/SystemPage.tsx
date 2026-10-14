@@ -1,3 +1,4 @@
+import { entries } from "@sidex/types";
 import { useState } from "react";
 import type { api } from "../../generated";
 import { ModalDialog } from "../../shared/components/ModalDialog";
@@ -39,9 +40,7 @@ export function SystemPage({
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingSystemAction>();
   const boot = system?.boot;
-  const slots = Object.entries(system?.slots ?? {}).filter(
-    (entry): entry is [string, api.SystemSlotInfo] => entry[1] !== undefined,
-  );
+  const slots = entries(system?.slots ?? {});
   const canCommit = features?.systemCommit === true && boot !== undefined;
   const canReboot = features?.systemReboot === true;
   const systemUncommitted =

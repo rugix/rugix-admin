@@ -1,3 +1,4 @@
+import { U64 } from "@sidex/types";
 import { ListTodo, Terminal } from "lucide-react";
 import type { jobs } from "../../generated";
 import { Surface } from "../../shared/components/Surface";
@@ -45,7 +46,7 @@ export function ActiveOperation({
           percent={progressPercent}
           fallback={
             log?.uploadedBytes
-              ? `${formatBytes(Number(log.uploadedBytes))} uploaded`
+              ? `${formatBytes(U64.toNumber(log.uploadedBytes))} uploaded`
               : undefined
           }
         />

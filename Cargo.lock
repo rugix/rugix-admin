@@ -181,9 +181,9 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.20.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "bitflags"
@@ -1009,15 +1009,13 @@ dependencies = [
  "mime_guess",
  "reportify",
  "serde",
- "serde_ignored",
  "serde_json",
  "serde_urlencoded",
  "si-observability",
  "sidex",
  "sidex-build-rs",
- "sidex-serde",
  "tokio",
- "toml",
+ "toml 0.5.11",
  "tracing",
  "uuid",
 ]
@@ -1089,16 +1087,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_ignored"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "115dffd5f3853e06e746965a20dcbae6ee747ae30b543d91b0e089668bb07798"
-dependencies = [
- "serde",
- "serde_core",
-]
-
-[[package]]
 name = "serde_json"
 version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1119,6 +1107,15 @@ checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
 dependencies = [
  "itoa",
  "serde",
+ "serde_core",
+]
+
+[[package]]
+name = "serde_spanned"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e7523beb55eece201a2356bee0bbca0d1ab466c14c07703b2e0ee6d42cb0c2c"
+dependencies = [
  "serde_core",
 ]
 
@@ -1157,73 +1154,77 @@ dependencies = [
 
 [[package]]
 name = "sidex"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
+ "base64",
+ "indexmap",
+ "jiff",
+ "regex",
  "serde",
  "serde_json",
- "sidex-serde",
- "thiserror 1.0.69",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]
 name = "sidex-attrs-api"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sidex",
  "sidex-diagnostics",
  "sidex-ir",
 ]
 
 [[package]]
 name = "sidex-attrs-json"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "serde",
  "serde_json",
+ "sidex",
  "sidex-diagnostics",
  "sidex-gen",
  "sidex-ir",
- "sidex-serde",
 ]
 
 [[package]]
 name = "sidex-attrs-rust"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "proc-macro2",
  "quote",
  "serde",
  "serde_json",
+ "sidex",
  "sidex-diagnostics",
  "sidex-gen",
  "sidex-ir",
- "sidex-serde",
 ]
 
 [[package]]
 name = "sidex-attrs-validate"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "serde",
  "serde_json",
+ "sidex",
  "sidex-diagnostics",
  "sidex-gen",
  "sidex-ir",
- "sidex-serde",
  "sidex-validate-expr",
 ]
 
 [[package]]
 name = "sidex-build-rs"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "serde_json",
  "sidex-core",
@@ -1233,8 +1234,8 @@ dependencies = [
 
 [[package]]
 name = "sidex-core"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "eyre",
  "hashbrown 0.13.2",
@@ -1243,17 +1244,19 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "sidex",
+ "sidex-attrs-json",
  "sidex-diagnostics",
  "sidex-ir",
  "sidex-syntax",
  "thiserror 1.0.69",
- "toml",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]
 name = "sidex-diagnostics"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "anyhow",
  "ariadne",
@@ -1264,8 +1267,8 @@ dependencies = [
 
 [[package]]
 name = "sidex-gen"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "serde_json",
  "sidex-diagnostics",
@@ -1275,8 +1278,8 @@ dependencies = [
 
 [[package]]
 name = "sidex-gen-rs"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1293,29 +1296,16 @@ dependencies = [
 
 [[package]]
 name = "sidex-ir"
-version = "0.2.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
- "serde",
- "serde_json",
- "sidex-serde",
-]
-
-[[package]]
-name = "sidex-serde"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
-dependencies = [
- "base64",
- "indexmap",
- "serde",
- "serde_json",
+ "sidex",
 ]
 
 [[package]]
 name = "sidex-syntax"
-version = "0.2.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "sidex-diagnostics",
  "sidex-ir",
@@ -1323,8 +1313,8 @@ dependencies = [
 
 [[package]]
 name = "sidex-validate-expr"
-version = "0.1.0"
-source = "git+https://github.com/silitics/sidex.git#53f5e11480ebf471ba37a97fa2a683be1e2bf235"
+version = "0.4.1"
+source = "git+https://github.com/silitics/sidex.git?tag=v0.4.1#76909d137a1d4baeea27d6c590c81442268d7577"
 dependencies = [
  "regex",
  "sidex-diagnostics",
@@ -1497,6 +1487,45 @@ checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "toml"
+version = "1.1.8+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20489e00e4d8741d6be680764cc12e270655e375a20d1011e844a9c3379e678d"
+dependencies = [
+ "indexmap",
+ "serde_core",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "1.1.2+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b86d767906c6c42421dcba507eb9d203e779497710a47782a224bb871653053"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_parser"
+version = "1.1.5+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baa693a8032d7e1cada7d0041e96126df243179ff061456783ac7f12bda4744c"
+dependencies = [
+ "winnow",
+]
+
+[[package]]
+name = "toml_writer"
+version = "1.1.3+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
 
 [[package]]
 name = "tower"
@@ -1807,6 +1836,12 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "winnow"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "yansi"

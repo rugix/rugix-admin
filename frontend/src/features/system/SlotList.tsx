@@ -1,3 +1,4 @@
+import { U64, entries } from "@sidex/types";
 import { ChevronRight } from "lucide-react";
 import { useId, useState } from "react";
 import type { api } from "../../generated";
@@ -76,7 +77,7 @@ export function SlotList({
                       <span className="font-mono text-xs text-foreground-muted">
                         {slot.size === undefined
                           ? "unknown"
-                          : formatBytes(Number(slot.size))}
+                          : formatBytes(U64.toNumber(slot.size))}
                       </span>
                       <span className="text-xs text-foreground-muted">
                         {slot.updatedAt
@@ -92,7 +93,7 @@ export function SlotList({
                 <span className="hidden font-mono text-sm text-foreground-muted md:block">
                   {slot.size === undefined
                     ? "unknown"
-                    : formatBytes(Number(slot.size))}
+                    : formatBytes(U64.toNumber(slot.size))}
                 </span>
                 <span className="hidden text-sm text-foreground-muted md:block">
                   {slot.updatedAt ? compactTime(slot.updatedAt) : "unknown"}
@@ -117,9 +118,7 @@ export function SlotList({
 }
 
 function SlotDetails({ slot }: { slot: api.SystemSlotInfo }) {
-  const hashes = Object.entries(slot.hashes ?? {}).filter(
-    (entry): entry is [string, string] => entry[1] !== undefined,
-  );
+  const hashes = entries(slot.hashes ?? {});
 
   return (
     <div className="space-y-4 px-4 py-4">

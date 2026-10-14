@@ -1,6 +1,7 @@
+import { U64 } from "@sidex/types";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { api } from "../../generated";
+import { api } from "../../generated";
 import { Input } from "../../shared/components/Input";
 import { Notice } from "../../shared/components/Notice";
 import { classes } from "../../shared/lib/classes";
@@ -185,13 +186,7 @@ export function InstallAdvancedOptions({
                   className={fieldClass}
                   value={values.reboot ?? ""}
                   onChange={(event) =>
-                    update(
-                      "reboot",
-                      event.target.value === ""
-                        ? undefined
-                        : (event.target
-                            .value as api.SystemInstallOptions["reboot"]),
-                    )
+                    update("reboot", parseRebootMode(event.target.value))
                   }
                 >
                   {!systemRebootEnabled && (
@@ -226,8 +221,7 @@ export function InstallAdvancedOptions({
           <section
             className={classes(
               "space-y-3",
-              (dangerouslyInsecure || system) &&
-                "border-t border-divider pt-4",
+              (dangerouslyInsecure || system) && "border-t border-divider pt-4",
             )}
           >
             <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-subtle">
@@ -317,8 +311,8 @@ function parseHttpOptions(
         "HTTP retry values must be non-negative integers within their supported ranges.",
     };
   }
-  const initial = initialBackoff === "" ? 1 : Number(initialBackoff);
-  const maximum = maxBackoff === "" ? 30 : Number(maxBackoff);
+  const initial = initialValue === undefined ? 1 : U64.toNumber(initialValue);
+  const maximum = maximumValue === undefined ? 30 : U64.toNumber(maximumValue);
   if (initial > maximum) {
     return {
       options: {},
@@ -333,6 +327,16 @@ function parseHttpOptions(
     },
     error: undefined,
   };
+}
+
+function parseRebootMode(value: string): api.SystemRebootMode | undefined {
+  if (value === "") return undefined;
+  if (!api.SystemRebootMode.is(value)) {
+    throw new Error(
+      `invalid reboot mode: ${api.SystemRebootMode.check(value)}`,
+    );
+  }
+  return value;
 }
 
 function nonEmpty(value: string) {

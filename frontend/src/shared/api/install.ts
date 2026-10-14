@@ -1,4 +1,4 @@
-import type { api, jobs } from "../../generated";
+import { api, type jobs } from "../../generated";
 import { ApiRequestError, queryString } from "./client";
 
 export function installQuery(
@@ -14,13 +14,13 @@ export function installQuery(
     insecureAllowMissingBlockIndex: options.insecureAllowMissingBlockIndex
       ? "true"
       : undefined,
-    skipCompatibilityCheck: options.skipCompatibilityCheck
-      ? "true"
-      : undefined,
+    skipCompatibilityCheck: options.skipCompatibilityCheck ? "true" : undefined,
     reboot: systemOptions?.reboot,
     bootGroup: systemOptions?.bootGroup,
     keepOverlay: systemOptions?.keepOverlay ? "true" : undefined,
-    disableRangeQueries: systemOptions?.disableRangeQueries ? "true" : undefined,
+    disableRangeQueries: systemOptions?.disableRangeQueries
+      ? "true"
+      : undefined,
     httpMaxRetries: options.httpMaxRetries,
     httpRetryInitialBackoff: options.httpRetryInitialBackoff,
     httpRetryMaxBackoff: options.httpRetryMaxBackoff,
@@ -47,12 +47,15 @@ export function uploadBundle(
     };
     xhr.onload = () => {
       try {
-        const body = JSON.parse(xhr.responseText) as
-          | api.JobResponse
-          | api.ApiErrorResponse;
-        if (xhr.status >= 200 && xhr.status < 300 && "job" in body) {
+        const body: unknown = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (!api.JobResponse.is(body)) {
+            throw new Error(
+              `invalid job response: ${api.JobResponse.check(body)}`,
+            );
+          }
           resolve(body.job);
-        } else if ("error" in body) {
+        } else if (api.ApiErrorResponse.is(body)) {
           reject(
             new ApiRequestError(
               xhr.status,
@@ -62,12 +65,8 @@ export function uploadBundle(
             ),
           );
         } else {
-          reject(
-            new ApiRequestError(
-              xhr.status,
-              "upload-failed",
-              xhr.statusText || `upload failed with HTTP ${xhr.status}`,
-            ),
+          throw new Error(
+            `invalid API error response: ${api.ApiErrorResponse.check(body)}`,
           );
         }
       } catch (error) {
@@ -75,7 +74,7 @@ export function uploadBundle(
           new ApiRequestError(
             xhr.status,
             "invalid-response",
-            `upload returned invalid JSON: ${unknownErrorMessage(error)}`,
+            `upload returned an invalid response: ${unknownErrorMessage(error)}`,
           ),
         );
       }
@@ -89,9 +88,7 @@ export function uploadBundle(
         ),
       );
     xhr.onabort = () =>
-      reject(
-        new ApiRequestError(0, "upload-aborted", "upload was aborted"),
-      );
+      reject(new ApiRequestError(0, "upload-aborted", "upload was aborted"));
     xhr.ontimeout = () =>
       reject(new ApiRequestError(0, "upload-timeout", "upload timed out"));
     xhr.send(form);

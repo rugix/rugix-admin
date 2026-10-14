@@ -74,7 +74,7 @@ impl JobManager {
             now.clone(),
             now,
         )
-        .with_target(target);
+        .with_target(target.map(Into::into));
         let event = SequencedJobEvent {
             sequence: 1,
             event: events::AdminEvent::JobChanged(events::JobChangedEvent::new(job.clone())),
@@ -268,7 +268,7 @@ impl JobManager {
             };
             let was_terminal = is_terminal(&entry.job.status);
             update(&mut entry.job);
-            entry.job.updated_at = now();
+            entry.job.updated_at = now().into();
             let completed = !was_terminal && is_terminal(&entry.job.status);
             let event =
                 events::AdminEvent::JobChanged(events::JobChangedEvent::new(entry.job.clone()));

@@ -1,8 +1,8 @@
-import type { api, events } from "../../generated";
+import { api, events } from "../../generated";
 import { ApiRequestError, request } from "../../shared/api/client";
 
 export const JobsApi = {
-  list: () => request<api.JobsListResponse>("/api/jobs"),
+  list: () => request("/api/jobs", api.JobsListResponse),
 };
 
 export function subscribeJob(
@@ -17,7 +17,11 @@ export function subscribeJob(
     try {
       const sequence = BigInt(message.lastEventId);
       if (sequence < 1n) throw new Error("event id must be positive");
-      onEvent(JSON.parse(message.data) as events.AdminEvent, sequence);
+      const event: unknown = JSON.parse(message.data);
+      if (!events.AdminEvent.is(event)) {
+        throw new Error(`invalid job event: ${events.AdminEvent.check(event)}`);
+      }
+      onEvent(event, sequence);
     } catch (error) {
       source.close();
       onError(

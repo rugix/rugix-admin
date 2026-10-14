@@ -111,10 +111,8 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
         vite = subprocess.Popen(
             [
                 "pnpm",
-                "exec",
-                "vite",
-                "--host",
-                "127.0.0.1",
+                "run",
+                "dev",
                 "--port",
                 str(frontend_port),
                 "--strictPort",

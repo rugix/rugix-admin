@@ -1,11 +1,11 @@
-import type { api, events } from "../../generated";
+import { api, events } from "../../generated";
 import { ApiRequestError, request } from "../../shared/api/client";
 
 export const ShellApi = {
   adminInfo: () =>
-    request<api.AdminInfoResponse>("/api/info", { cache: "no-store" }),
+    request("/api/info", api.AdminInfoResponse, { cache: "no-store" }),
   daemonInfo: () =>
-    request<api.DaemonInfoResponse>("/api/daemon", { cache: "no-store" }),
+    request("/api/daemon", api.DaemonInfoResponse, { cache: "no-store" }),
 };
 
 export function subscribeServerEvents(
@@ -15,9 +15,11 @@ export function subscribeServerEvents(
   const source = new EventSource("/api/events");
   source.addEventListener("invalidate-all", (message) => {
     try {
-      const event = JSON.parse((message as MessageEvent).data) as events.ServerEvent;
-      if (event.type !== "invalidate-all") {
-        throw new Error(`unexpected server event type: ${event.type}`);
+      const event: unknown = JSON.parse((message as MessageEvent).data);
+      if (!events.ServerEvent.is(event)) {
+        throw new Error(
+          `invalid server event: ${events.ServerEvent.check(event)}`,
+        );
       }
       onInvalidate();
     } catch (error) {
