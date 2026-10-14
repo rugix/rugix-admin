@@ -8,7 +8,7 @@ node = "22"
 pnpm = "11.9.0"
 python = "3.12"
 uv = "latest"
-"github:silitics/sidex" = { version = "0.4.0", exe = "sidex" }
+"github:silitics/sidex" = { version = "0.4.1", exe = "sidex" }
 "github:cross-rs/cross" = { version = "latest", exe = "cross", os = ["linux/x64"] }
 "github:CycloneDX/cyclonedx-rust-cargo" = { version = "latest", exe = "cargo-cyclonedx" }
 "github:CycloneDX/cyclonedx-cli" = { version = "latest", exe = "cyclonedx" }

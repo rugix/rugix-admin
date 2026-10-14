@@ -24,8 +24,8 @@ serde = "1.0.217"
 serde_json = "1.0.138"
 serde_urlencoded = "0.7.1"
 si-observability = "0.1.2"
-sidex = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.0", features = ["serde-1", "serde_json-1"] }
-sidex-build-rs = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.0" }
+sidex = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.1", features = ["serde-1", "serde_json-1"] }
+sidex-build-rs = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.1" }
 tokio = "1.29.1"
 toml = "0.5.11"
 tracing = "0.1"

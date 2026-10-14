@@ -12,8 +12,8 @@ importers:
         specifier: ^1.7.0
         version: 1.7.0(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@sidex/types':
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.4.1
+        version: 0.4.1
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -235,8 +235,8 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@sidex/types@0.4.0':
-    resolution: {integrity: sha512-pltkEwWQdTj/2YId1NFN+eJ6c8kMGs4FfTLOu6uHsx4kUHsbOmEQJSaWev2DPYHX6HUHIxsz4QUs88td1sISvg==}
+  '@sidex/types@0.4.1':
+    resolution: {integrity: sha512-zC0QVdxNQbN8zsReuJCWk4Iu7XdBv2tSPyBXbrtjnyUM8hj4OjMUAVxkf4e8/pzmDMjhIKY0mxIfkAaDswrHSQ==}
     engines: {node: '>=18'}
 
   '@tailwindcss/node@4.3.3':
@@ -806,7 +806,7 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@sidex/types@0.4.0': {}
+  '@sidex/types@0.4.1': {}
 
   '@tailwindcss/node@4.3.3':
     dependencies:

@@ -6,7 +6,7 @@
     rugix.url = "github:rugix/rugix/e9c3a2677d9389c71209e792f7c6777a243275ff";
     rugix.inputs.nixpkgs.follows = "nixpkgs";
     # Keep the frontend generator aligned with the Sidex revision in Cargo.lock.
-    sidex.url = "github:silitics/sidex/v0.4.0";
+    sidex.url = "github:silitics/sidex/v0.4.1";
     sidex.inputs.nixpkgs.follows = "nixpkgs";
   };
 

@@ -89,16 +89,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1791914299,
-        "narHash": "sha256-ajMrYwnvzZzLYRk4ASF7IssLADaI0HjgQ6wJfWzMymI=",
+        "lastModified": 1791956184,
+        "narHash": "sha256-KpecCZZpEaN08q/6fIVaiAi+AatSLZDIiiNXPGmxZPI=",
         "owner": "silitics",
         "repo": "sidex",
-        "rev": "f8bfaa1e77312395ea9ea6116603db2016acdea8",
+        "rev": "76909d137a1d4baeea27d6c590c81442268d7577",
         "type": "github"
       },
       "original": {
         "owner": "silitics",
-        "ref": "v0.4.0",
+        "ref": "v0.4.1",
         "repo": "sidex",
         "type": "github"
       }
