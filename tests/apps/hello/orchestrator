@@ -1,0 +1,47 @@
+#!/bin/bash
+# Generic orchestrator script for the hello app.
+set -euo pipefail
+
+MARKER="${RUGIX_APP_DATA_DIR}/running"
+PIDFILE="${RUGIX_APP_DATA_DIR}/pid"
+
+case "$1" in
+    activate)
+        mkdir -p "${RUGIX_APP_DATA_DIR}"
+        echo "hello" > "${MARKER}"
+        # Start a background process as the workload.
+        nohup sleep infinity &>/dev/null &
+        echo $! > "${PIDFILE}"
+        ;;
+    deactivate)
+        if [ -f "${PIDFILE}" ]; then
+            kill "$(cat "${PIDFILE}")" 2>/dev/null || true
+            rm -f "${PIDFILE}"
+        fi
+        rm -f "${MARKER}"
+        ;;
+    start)
+        mkdir -p "${RUGIX_APP_DATA_DIR}"
+        echo "hello" > "${MARKER}"
+        nohup sleep infinity &>/dev/null &
+        echo $! > "${PIDFILE}"
+        ;;
+    stop)
+        if [ -f "${PIDFILE}" ]; then
+            kill "$(cat "${PIDFILE}")" 2>/dev/null || true
+            rm -f "${PIDFILE}"
+        fi
+        rm -f "${MARKER}"
+        ;;
+    status)
+        if [ -f "${PIDFILE}" ] && kill -0 "$(cat "${PIDFILE}")" 2>/dev/null; then
+            echo '{"state": "running"}'
+        else
+            echo '{"state": "stopped"}'
+        fi
+        ;;
+    *)
+        echo "unknown operation: $1" >&2
+        exit 1
+        ;;
+esac

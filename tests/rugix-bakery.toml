@@ -1,0 +1,7 @@
+[repositories]
+rugix-testkit = { git = "https://github.com/rugix/rugix-testkit.git", branch = "main", dir = "bakery" }
+
+[systems.admin]
+layer = "admin"
+architecture = "amd64"
+target = "generic-grub-efi"

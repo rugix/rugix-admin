@@ -143,6 +143,10 @@ mise run build x86_64-unknown-linux-musl
 On NixOS or a host without Playwright browsers, run
 `cd frontend && pnpm run test:e2e:nix` instead.
 
+The browser tests run against a simulated Rugix Ctrl. The
+[system tests](tests/README.md) run Rugix Admin on a real Rugix system in a
+virtual machine with `mise run test:system`.
+
 Run `mise run doctor` to check host dependencies. Development requires rustup
 and a C compiler. Cross-builds additionally require Docker or Podman.
 

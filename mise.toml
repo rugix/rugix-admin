@@ -60,6 +60,20 @@ description = "Run browser-driven frontend tests."
 dir = "frontend"
 run = "pnpm install --frozen-lockfile && pnpm run test:e2e"
 
+[tasks."test:system"]
+description = "Run the QEMU-based system tests against a real Rugix system (requires a container runtime, QEMU, and OVMF)."
+dir = "tests"
+run = 'uv run pytest "$@"'
+
+[tasks."check:tests"]
+description = "Lint, format-check, and type-check the system tests."
+dir = "tests"
+run = '''
+uv run --group dev ruff check .
+uv run --group dev ruff format --check .
+uv run --group dev mypy .
+'''
+
 [tasks."frontend:install"]
 description = "Install locked frontend dependencies."
 dir = "frontend"

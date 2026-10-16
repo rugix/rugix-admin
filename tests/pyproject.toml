@@ -1,0 +1,28 @@
+[project]
+name = "rugix-admin-system-tests"
+version = "0.0.0"
+description = "System tests for Rugix Admin."
+requires-python = ">=3.11"
+dependencies = [
+    "rugix-testkit @ git+https://github.com/rugix/rugix-testkit.git@main",
+]
+
+[dependency-groups]
+dev = ["mypy>=1.0", "ruff>=0.4"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+rugix_boot_system = "admin"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+log_cli_date_format = "%H:%M:%S"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.ruff]
+target-version = "py311"
