@@ -1,0 +1,9 @@
+/.rugix/
+/.rugix-testkit/
+/.venv/
+/build/
+/test-outputs/
+/uv.lock
+__pycache__/
+.mypy_cache/
+.ruff_cache/

@@ -1,0 +1,3 @@
+parent = "rugix-testkit/debian-efi"
+
+recipes = ["rugix-admin"]

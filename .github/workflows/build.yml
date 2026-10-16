@@ -88,6 +88,39 @@ jobs:
           path: build/binaries/binaries-${{ matrix.target }}.tar
           if-no-files-found: error
 
+  system_test:
+    name: System Tests
+    runs-on: [self-hosted, nixos]
+    needs:
+      - build_binaries_linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Download Binary
+        uses: actions/download-artifact@v8
+        with:
+          name: binaries-x86_64-unknown-linux-musl
+          path: build/binaries
+      - name: Extract Binary
+        run: |
+          mkdir -p build/binaries/x86_64-unknown-linux-musl
+          tar -xf build/binaries/binaries-x86_64-unknown-linux-musl.tar -C build/binaries/x86_64-unknown-linux-musl
+      - name: Run System Tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUGIX_BAKERY_IMAGE="ghcr.io/rugix/rugix-bakery:branch-main"
+          podman pull "$RUGIX_BAKERY_IMAGE"
+          mise install --locked python uv
+          mise run --skip-tools test:system
+      - name: Upload Test Outputs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: system-test-outputs
+          path: tests/test-outputs/
+          if-no-files-found: ignore
+
   upload_release_assets:
     name: "Upload Release Assets"
     runs-on: ubuntu-latest
