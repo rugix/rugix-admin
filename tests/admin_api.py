@@ -9,6 +9,7 @@ from typing import Any
 from rugix_testkit import VMHandle
 
 CURL = ["curl", "--silent", "--fail-with-body"]
+CURL_TIMEOUT = 28
 
 
 class AdminApi:
@@ -61,11 +62,11 @@ class AdminApi:
 
     def events(self, job_id: str) -> list[dict[str, Any]]:
         """Return the events that the job has emitted so far."""
-        # The event stream stays open, so curl stops after replaying the history.
-        stream = self.vm.run(
+        # The event stream stays open, so curl times out after replaying the
+        # history.
+        result = self.vm.run(
             [
-                "curl",
-                "--silent",
+                *CURL,
                 "--no-buffer",
                 "--max-time",
                 "3",
@@ -73,10 +74,15 @@ class AdminApi:
             ],
             check=False,
             hide=True,
-        ).stdout
+        )
+        if result.return_code != CURL_TIMEOUT:
+            raise AssertionError(
+                f"reading events of job {job_id} failed with curl exit code "
+                f"{result.return_code}"
+            )
         return [
             json.loads(line.removeprefix("data:"))
-            for line in stream.splitlines()
+            for line in result.stdout.splitlines()
             if line.startswith("data:")
         ]
 

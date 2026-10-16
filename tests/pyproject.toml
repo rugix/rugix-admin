@@ -24,9 +24,5 @@ log_cli_date_format = "%H:%M:%S"
 python_version = "3.11"
 strict = true
 
-[[tool.mypy.overrides]]
-module = ["fabric.*", "paramiko.*"]
-ignore_missing_imports = true
-
 [tool.ruff]
 target-version = "py311"
