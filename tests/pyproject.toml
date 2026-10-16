@@ -5,7 +5,6 @@ description = "System tests for Rugix Admin."
 requires-python = ">=3.11"
 dependencies = [
     "rugix-testkit @ git+https://github.com/rugix/rugix-testkit.git@work/agents/per-repo-system-tests",
-    "pytest-xdist>=3.0",
 ]
 
 [dependency-groups]
@@ -16,7 +15,6 @@ package = false
 
 [tool.pytest.ini_options]
 rugix_boot_system = "admin"
-addopts = "--dist loadfile"
 log_cli = true
 log_cli_level = "INFO"
 log_cli_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"

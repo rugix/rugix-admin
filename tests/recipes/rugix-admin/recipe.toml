@@ -1,5 +1,4 @@
 description = "install the Rugix Admin build under test"
-dependencies = ["core/pkg-update"]
 
 [parameters]
 # Digest of `build/rugix-admin`, which invalidates cached layers on rebuilds.

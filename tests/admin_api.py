@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
-import shlex
 import time
 from typing import Any
 
 from rugix_testkit import VMHandle
+
+CURL = ["curl", "--silent", "--fail-with-body"]
 
 
 class AdminApi:
@@ -17,37 +18,67 @@ class AdminApi:
         self.vm = vm
 
     def get(self, path: str) -> Any:
-        return self._request(["curl", "--silent", "--fail-with-body", self._url(path)])
+        return self._request([*CURL, self._url(path)])
+
+    def get_text(self, path: str) -> str:
+        return self.vm.run([*CURL, self._url(path)], hide=True).stdout
 
     def post(self, path: str, body: Any = None) -> Any:
-        command = ["curl", "--silent", "--fail-with-body", "-X", "POST"]
+        command = [*CURL, "-X", "POST"]
         if body is not None:
             command += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
         return self._request([*command, self._url(path)])
 
-    def post_disconnecting(self, path: str) -> None:
-        """Send a request that drops the SSH connection, e.g., by rebooting."""
-        command = [
-            "curl",
-            "--silent",
-            "--fail-with-body",
-            "-X",
-            "POST",
-            self._url(path),
-        ]
-        self.vm.run_disconnecting(["sh", "-c", shlex.join(command)])
+    def upload(self, path: str, field: str, remote_file: str) -> Any:
+        """Post *remote_file* on the VM as a multipart form field."""
+        return self._request([*CURL, "-F", f"{field}=@{remote_file}", self._url(path)])
 
-    def wait_for_job(self, job_id: str, *, timeout: float = 600) -> dict[str, Any]:
-        """Wait until the job finishes and return it. Fails if the job failed."""
+    def post_disconnecting(self, path: str) -> None:
+        """Send a request that drops the SSH connection, for example, a reboot."""
+        self.vm.run_disconnecting([*CURL, "-X", "POST", self._url(path)])
+
+    def finish(self, job_id: str, *, timeout: float = 600) -> dict[str, Any]:
+        """Wait until the job succeeds or fails and return it."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             job: dict[str, Any] = self.get(f"/api/jobs/{job_id}")["job"]
-            status = job["status"]["status"]
-            if status == "succeeded":
+            if job["status"]["status"] in ("succeeded", "failed"):
                 return job
-            assert status != "failed", f"job {job_id} failed: {job['status']}"
             time.sleep(1)
         raise TimeoutError(f"job {job_id} did not finish within {timeout}s")
+
+    def wait_for_job(self, job_id: str, *, timeout: float = 600) -> dict[str, Any]:
+        """Wait until the job finishes and return it. Fails if the job failed."""
+        job = self.finish(job_id, timeout=timeout)
+        if job["status"]["status"] == "failed":
+            output = "\n".join(
+                event["line"]
+                for event in self.events(job_id)
+                if event["type"] == "job-output"
+            )
+            raise AssertionError(f"job {job_id} failed: {job['status']}\n{output}")
+        return job
+
+    def events(self, job_id: str) -> list[dict[str, Any]]:
+        """Return the events that the job has emitted so far."""
+        # The event stream stays open, so curl stops after replaying the history.
+        stream = self.vm.run(
+            [
+                "curl",
+                "--silent",
+                "--no-buffer",
+                "--max-time",
+                "3",
+                self._url(f"/api/jobs/{job_id}/events"),
+            ],
+            check=False,
+            hide=True,
+        ).stdout
+        return [
+            json.loads(line.removeprefix("data:"))
+            for line in stream.splitlines()
+            if line.startswith("data:")
+        ]
 
     def wait_until_ready(self, *, timeout: float = 60) -> None:
         deadline = time.monotonic() + timeout

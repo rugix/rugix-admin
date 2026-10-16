@@ -41,6 +41,7 @@ struct JobEntry {
     events: VecDeque<SequencedJobEvent>,
     next_event_sequence: u64,
     last_install_progress_percent: Option<u8>,
+    /// Last stderr line outside the source locations of an error report.
     last_stderr_line: Option<String>,
     tx: broadcast::Sender<SequencedJobEvent>,
 }
@@ -185,7 +186,8 @@ impl JobManager {
                 tracing::warn!(%job_id, "discarding output for an unknown job");
                 return;
             };
-            if matches!(stream, events::JobOutputStream::Stderr) {
+            if matches!(stream, events::JobOutputStream::Stderr) && !is_error_report_location(&line)
+            {
                 entry.last_stderr_line = Some(line);
             }
             push_entry_event(entry, event)
@@ -343,6 +345,13 @@ fn now() -> String {
     jiff::Timestamp::now().to_string()
 }
 
+/// Whether *line* belongs to the source locations and causes that Rugix Ctrl prints
+/// after the message of an error report.
+fn is_error_report_location(line: &str) -> bool {
+    let line = line.trim_start();
+    line.is_empty() || line.starts_with(['├', '╰', '│'])
+}
+
 #[cfg(test)]
 mod tests {
     use tokio::sync::broadcast::error::TryRecvError;
@@ -382,6 +391,43 @@ mod tests {
 
         assert_eq!(sequences(first_replay), vec![1, 2, 3]);
         assert_eq!(sequences(second_replay), vec![1, 2, 3]);
+    }
+
+    /// Verifies that failures report the message of Rugix Ctrl's error report rather than
+    /// the source locations that follow it.
+    #[tokio::test]
+    async fn command_failure_reports_error_message() {
+        let manager = JobManager::default();
+        let job = manager
+            .create(
+                None,
+                "Test job".to_owned(),
+                jobs::JobKind::SystemAction,
+                None,
+            )
+            .await
+            .unwrap();
+        for line in [
+            "daemon factory reset operations are disabled",
+            "├╴at crates/apps/rugix-ctrl/src/daemon/policy.rs:136:13",
+            "│",
+            "╰─▶ cause: request rejected",
+            "    ╰╴at crates/apps/rugix-ctrl/src/daemon/client.rs:45:9",
+        ] {
+            manager
+                .emit_output(&job.id, events::JobOutputStream::Stderr, line.to_owned())
+                .await;
+        }
+
+        manager.fail_command(&job.id, Some(1)).await;
+
+        let jobs::JobStatus::Failed(failure) = manager.get(&job.id).await.unwrap().status else {
+            panic!("job did not fail");
+        };
+        assert_eq!(
+            failure.message,
+            "rugix-ctrl failed: daemon factory reset operations are disabled"
+        );
     }
 
     /// Verifies that only the transition to a terminal job state invalidates device data.

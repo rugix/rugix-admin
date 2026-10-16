@@ -10,6 +10,7 @@ Behavior Changes:
 - Report the orchestrator of an application's current generation through the applications API.
 - Report the application configuration revisions that Rugix Ctrl tracks: the revision each generation last activated with, the revision of the active deployment, and the desired revision. These were silently dropped before, because the application state contract had drifted from Rugix Ctrl's.
 - Tolerate an application generation without recorded metadata, whose creation timestamp Rugix Ctrl now omits rather than reporting as an empty string.
+- Report the reason of a failed Rugix Ctrl command in a job's failure message, for example, a daemon policy denial. Failure messages showed a source location of Rugix Ctrl's error report instead.
 
 ## 0.5.0 - 2026-08-21
 
