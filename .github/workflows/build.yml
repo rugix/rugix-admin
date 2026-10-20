@@ -90,7 +90,7 @@ jobs:
 
   system_test:
     name: System Tests
-    runs-on: [self-hosted, nixos]
+    runs-on: [self-hosted, si-large]
     needs:
       - build_binaries_linux
     steps:
