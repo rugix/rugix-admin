@@ -20,6 +20,8 @@ jobs:
       - name: Install Rust Toolchain
         run: rustup show active-toolchain
       - name: Install Locked Tools
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise install --locked node pnpm github:silitics/sidex
       - name: Check
         run: mise run --skip-tools check
@@ -38,6 +40,8 @@ jobs:
       - name: Install Rust Toolchain
         run: rustup show active-toolchain
       - name: Install Locked Tools
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise install --locked node python
       - name: Materialize Test Release Version
         run: scripts/materialize-version.py v0.5.0-test.1
@@ -61,6 +65,8 @@ jobs:
       - name: Install Rust Toolchain
         run: rustup show active-toolchain
       - name: Install Locked Tools
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise install --locked node pnpm python uv github:silitics/sidex
       - name: Install Browser
         working-directory: frontend/tests
@@ -79,6 +85,8 @@ jobs:
           install: false
           cache: true
       - name: Install Locked Tools
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise install --locked python uv
       - name: Check System Tests
         run: mise run --skip-tools check:tests

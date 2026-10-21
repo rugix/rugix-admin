@@ -24,6 +24,8 @@ jobs:
           install: false
           cache: true
       - name: Install Locked Tools
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise install --locked node pnpm github:silitics/sidex
       - name: Build Frontend
         run: mise run --skip-tools frontend:build
@@ -71,6 +73,8 @@ jobs:
           rustup show active-toolchain
           rustup target add ${{ matrix.target }}
       - name: Install Locked Tools
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise install --locked pnpm python github:cross-rs/cross github:CycloneDX/cyclonedx-rust-cargo github:CycloneDX/cyclonedx-cli
       - name: Download Frontend Dist
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
