@@ -67,17 +67,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1788765871,
-        "narHash": "sha256-3U48Po/c5qIEhfWqKXdtNXxsExEXJMsLe1mvig6t0QM=",
+        "lastModified": 1793635232,
+        "narHash": "sha256-TVkeX4waKRUFMTJgsY32TGlJYyJgpUd1Oc/CI+i+Wdc=",
         "owner": "rugix",
         "repo": "rugix",
-        "rev": "e9c3a2677d9389c71209e792f7c6777a243275ff",
+        "rev": "6d7fc277919b0048893c80d7e1e6e488ddc7b27b",
         "type": "github"
       },
       "original": {
         "owner": "rugix",
+        "ref": "v1.4.0",
         "repo": "rugix",
-        "rev": "e9c3a2677d9389c71209e792f7c6777a243275ff",
         "type": "github"
       }
     },

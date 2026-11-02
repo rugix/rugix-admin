@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    rugix.url = "github:rugix/rugix/e9c3a2677d9389c71209e792f7c6777a243275ff";
+    rugix.url = "github:rugix/rugix/v1.4.0";
     rugix.inputs.nixpkgs.follows = "nixpkgs";
     # Keep the frontend generator aligned with the Sidex revision in Cargo.lock.
     sidex.url = "github:silitics/sidex/v0.4.1";
