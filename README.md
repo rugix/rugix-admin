@@ -50,7 +50,17 @@ rugix-extra = { git = "https://github.com/rugix/rugix-extra.git" }
 ```
 
 Then include `rugix-extra/rugix-admin` and `core/rugix-ctrl-daemon` in the
-system's layer. See the
+system's layer and select matching releases with these recipe parameters:
+
+```toml
+[parameters."core/rugix-ctrl"]
+version = "v1.4.0"
+
+[parameters."rugix-extra/rugix-admin"]
+source = "v0.6.0"
+```
+
+See the
 [installation documentation](https://rugix.org/docs/admin/installation/) for a
 complete example and deployment guidance.
 
@@ -61,6 +71,9 @@ For Yocto-based systems, the official
 ```bitbake
 IMAGE_INSTALL:append = " rugix-admin"
 ```
+
+The layer currently packages Rugix Admin 0.5.0 with Rugix Ctrl 1.3.x. Deploying
+Rugix Admin 0.6.0 requires updated recipes for both components.
 
 For evaluation or for an existing system that is not built with Rugix Bakery,
 `installer/install-rugix-admin.sh` installs the release binary and systemd
@@ -76,10 +89,9 @@ Set `RUGIX_ADMIN_VERSION` or pass a version as the first argument to install a
 specific Rugix Admin release. Set `RUGIX_CTRL_VERSION` to select the Rugix Ctrl
 release installed when the command is absent. `RUGIX_ADMIN_GITHUB_REPO` and
 `RUGIX_CTRL_GITHUB_REPO` override the respective GitHub repositories.
-An existing `rugix-ctrl` command is preserved and must provide daemon mode. It
-must also report the application lifecycle state as `lifecycle` in
-`rugix-ctrl apps info`, which Rugix Ctrl does in releases after 1.3.0. Reading
-an application's details fails against earlier releases.
+Rugix Admin 0.6.0 requires Rugix Ctrl 1.4.0 or later. An existing `rugix-ctrl` command
+is preserved; upgrade it separately before installing Rugix Admin. Earlier
+Rugix Ctrl releases use an incompatible application inspection format.
 
 The service listens on `127.0.0.1:7492` by default. Configure a trusted listen
 address before accessing it from another machine.

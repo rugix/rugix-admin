@@ -65,9 +65,14 @@ nix build .#checks.x86_64-linux.nixos
 ```
 
 The check boots a NixOS VM and verifies the embedded frontend, daemon access
-from the dynamic service user, and recovery after an Admin service restart.
+from the dynamic service user, application inspection with missing generation
+metadata, and recovery after an Admin service restart.
 
 ## Maintain the Build Inputs
+
+The Rugix input is pinned to Rugix Ctrl 1.4.0, the minimum supported version.
+When updating it, run the NixOS service check to verify application inspection
+through the privileged daemon.
 
 The frontend generator uses the Sidex revision pinned in `flake.nix`, matching
 `Cargo.lock`. Keep these revisions aligned when updating Sidex. Update the
