@@ -51,7 +51,7 @@ def browser_type_launch_args(browser_type_launch_args: dict) -> dict:
         )
     if not matches:
         raise RuntimeError(
-            f"no chromium under {browsers_root} - run `pnpm run test:e2e:browsers`"
+            f"no chromium under {browsers_root} - run `mise run test:e2e`"
         )
     return {**browser_type_launch_args, "executable_path": str(matches[-1])}
 

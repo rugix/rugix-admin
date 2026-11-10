@@ -10,10 +10,10 @@ available fixtures.
 
 ## Running the Tests
 
-Prerequisites:
-
-- A container runtime (Podman or Docker) for Rugix Bakery.
-- `qemu-system-x86_64` with OVMF firmware.
+The mise test task obtains QEMU, OVMF, and mtools
+from the pinned Nix environment. Install Nix with flakes enabled, mise,
+and the repository's Python tools with `mise install`. The host must support
+Podman or Docker for Rugix Bakery's container builds.
 
 The tests install the musl build of Rugix Admin from
 `../build/binaries/x86_64-unknown-linux-musl/rugix-admin`. Set
