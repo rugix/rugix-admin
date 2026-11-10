@@ -55,6 +55,43 @@
         }
       );
 
+      devShells = forEachSystem (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          default = pkgs.mkShell {
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              pkgs.xz
+              pkgs.openssl
+              pkgs.stdenv.cc.cc.lib
+            ];
+            packages = with pkgs; [
+              git
+              pkg-config
+              openssl
+              xz
+              podman
+            ];
+          };
+          browser-tests = pkgs.mkShell {
+            inherit (self.devShells.${system}.default) LD_LIBRARY_PATH;
+            inputsFrom = [ self.devShells.${system}.default ];
+            RUGIX_ADMIN_TESTS_PLAYWRIGHT_BROWSERS = "${pkgs.playwright-driver.browsers}";
+          };
+          system-tests = pkgs.mkShell {
+            packages = with pkgs; [
+              podman
+              qemu
+              mtools
+            ];
+            RUGIX_OVMF_CODE_AMD64 = "${pkgs.OVMF.fd}/FV/OVMF_CODE.fd";
+            RUGIX_OVMF_VARS_AMD64 = "${pkgs.OVMF.fd}/FV/OVMF_VARS.fd";
+          };
+        }
+      );
+
       apps = forEachSystem (system: {
         default = self.apps.${system}.rugix-admin;
         rugix-admin = {

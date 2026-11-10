@@ -38,9 +38,7 @@ error: Rugix Admin frontend distribution is missing.
 
 Build it before packaging binaries:
 
-    cd frontend
-    pnpm install --frozen-lockfile
-    pnpm run build
+    mise run frontend:build
 
 EOF
     exit 1
