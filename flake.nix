@@ -62,6 +62,11 @@
         in
         {
           default = pkgs.mkShell {
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              pkgs.xz
+              pkgs.openssl
+              pkgs.stdenv.cc.cc.lib
+            ];
             packages = with pkgs; [
               git
               pkg-config
@@ -71,6 +76,7 @@
             ];
           };
           browser-tests = pkgs.mkShell {
+            inherit (self.devShells.${system}.default) LD_LIBRARY_PATH;
             inputsFrom = [ self.devShells.${system}.default ];
             RUGIX_ADMIN_TESTS_PLAYWRIGHT_BROWSERS = "${pkgs.playwright-driver.browsers}";
           };
