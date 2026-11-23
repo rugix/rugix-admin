@@ -9,6 +9,7 @@ from typing import Any
 from rugix_testkit import VMHandle
 
 CURL = ["curl", "--silent", "--fail-with-body"]
+POST = [*CURL, "-H", "X-Rugix-Admin: 1"]
 CURL_TIMEOUT = 28
 
 
@@ -25,18 +26,18 @@ class AdminApi:
         return self.vm.run([*CURL, self._url(path)], hide=True).stdout
 
     def post(self, path: str, body: Any = None) -> Any:
-        command = [*CURL, "-X", "POST"]
+        command = [*POST, "-X", "POST"]
         if body is not None:
             command += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
         return self._request([*command, self._url(path)])
 
     def upload(self, path: str, field: str, remote_file: str) -> Any:
         """Post *remote_file* on the VM as a multipart form field."""
-        return self._request([*CURL, "-F", f"{field}=@{remote_file}", self._url(path)])
+        return self._request([*POST, "-F", f"{field}=@{remote_file}", self._url(path)])
 
     def post_disconnecting(self, path: str) -> None:
         """Send a request that drops the SSH connection, for example, a reboot."""
-        self.vm.run_disconnecting([*CURL, "-X", "POST", self._url(path)])
+        self.vm.run_disconnecting([*POST, "-X", "POST", self._url(path)])
 
     def finish(self, job_id: str, *, timeout: float = 600) -> dict[str, Any]:
         """Wait until the job succeeds or fails and return it."""

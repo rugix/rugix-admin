@@ -31,7 +31,7 @@ rustPlatform.buildRustPackage {
     src = "${source}/frontend";
     pnpm = pnpm_11;
     fetcherVersion = 3;
-    hash = "sha256-45mjqFj2Ce13fh2qSVaVshi3vWs8hoPksGuetvouFGo=";
+    hash = "sha256-jvwoovvyThxfiRm+VtKAZ6PTyZKVnNbiurzky7tSGeM=";
   };
 
   nativeBuildInputs = [

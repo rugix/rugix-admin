@@ -22,11 +22,12 @@ use indexmap::IndexMap;
 use reportify::ResultExt;
 use serde::Deserialize;
 use tokio::sync::broadcast;
+use uuid::Uuid;
 
 use crate::ctrl::run_components_check_command;
 use crate::ctrl::run_json_command;
+use crate::ctrl::run_upload_job;
 use crate::ctrl::spawn_command_job;
-use crate::ctrl::stream_upload_job;
 use crate::ctrl::CommandSpec;
 use crate::error::ApiError;
 use crate::generated::api;
@@ -76,6 +77,7 @@ pub(crate) async fn upload_system_update(
     query: Result<Query<api::SystemInstallOptions>, QueryRejection>,
     multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
+    validate_job_id(&job_id)?;
     let Query(query) = query.map_err(invalid_query)?;
     let multipart = multipart.map_err(invalid_multipart)?;
     let args = system_update_args(query, "-".to_owned(), false)?;
@@ -89,8 +91,8 @@ pub(crate) async fn upload_system_update(
             None,
         )
         .await?;
-    stream_upload_job(state.jobs.clone(), job_id.clone(), args, multipart, "image").await;
-    Ok(Json(api::JobResponse::new(state.jobs.get(&job_id).await?)))
+    let job = run_upload_job(state.jobs, job_id, args, multipart, "image").await?;
+    Ok(Json(api::JobResponse::new(job)))
 }
 
 pub(crate) async fn install_system_update_from_url(
@@ -99,6 +101,7 @@ pub(crate) async fn install_system_update_from_url(
     query: Result<Query<api::SystemInstallOptions>, QueryRejection>,
     request: Result<Json<api::InstallFromUrlRequest>, JsonRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
+    validate_job_id(&job_id)?;
     let Query(query) = query.map_err(invalid_query)?;
     let Json(request) = request.map_err(invalid_json)?;
     let url = request.url.trim();
@@ -227,6 +230,7 @@ pub(crate) async fn upload_app_bundle(
     query: Result<Query<api::AppInstallOptions>, QueryRejection>,
     multipart: Result<Multipart, MultipartRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
+    validate_job_id(&job_id)?;
     let Query(query) = query.map_err(invalid_query)?;
     let multipart = multipart.map_err(invalid_multipart)?;
     let args = app_install_args(query, "-".to_owned(), false)?;
@@ -240,15 +244,8 @@ pub(crate) async fn upload_app_bundle(
             None,
         )
         .await?;
-    stream_upload_job(
-        state.jobs.clone(),
-        job_id.clone(),
-        args,
-        multipart,
-        "bundle",
-    )
-    .await;
-    Ok(Json(api::JobResponse::new(state.jobs.get(&job_id).await?)))
+    let job = run_upload_job(state.jobs, job_id, args, multipart, "bundle").await?;
+    Ok(Json(api::JobResponse::new(job)))
 }
 
 pub(crate) async fn install_app_bundle_from_url(
@@ -257,6 +254,7 @@ pub(crate) async fn install_app_bundle_from_url(
     query: Result<Query<api::AppInstallOptions>, QueryRejection>,
     request: Result<Json<api::InstallFromUrlRequest>, JsonRejection>,
 ) -> ApiResult<Json<api::JobResponse>> {
+    validate_job_id(&job_id)?;
     let Query(query) = query.map_err(invalid_query)?;
     let Json(request) = request.map_err(invalid_json)?;
     let url = request.url.trim();
@@ -439,6 +437,12 @@ pub(crate) async fn server_events(
         }
     });
     Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+fn validate_job_id(job_id: &str) -> ApiResult<()> {
+    Uuid::parse_str(job_id)
+        .map(|_| ())
+        .map_err(|_| ApiError::bad_request("invalid-job-id", "job ID must be a UUID"))
 }
 
 fn invalid_query(error: QueryRejection) -> ApiError {

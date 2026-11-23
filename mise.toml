@@ -60,14 +60,14 @@ run = "cargo test --all-features"
 [tasks."test:e2e"]
 description = "Run browser-driven frontend tests with Nix-provided Chromium."
 shell = 'nix develop "{{config_root}}#browser-tests" --command bash -euo pipefail -c'
-depends = ["frontend:install"]
+depends = ["frontend:build"]
 dir = "frontend/tests"
 run = 'uv run pytest "$@"'
 
 [tasks."test:e2e:headed"]
 description = "Run browser tests in a visible browser (requires a display)."
 shell = 'nix develop "{{config_root}}#browser-tests" --command bash -euo pipefail -c'
-depends = ["frontend:install"]
+depends = ["frontend:build"]
 dir = "frontend/tests"
 run = 'uv run pytest --headed --slowmo 250 -s "$@"'
 

@@ -30,6 +30,7 @@ RUGIX_DEB_VARIANT="${RUGIX_DEB_VARIANT:-musl}"
 RUGIX_ADMIN_ADDRESS_EXPLICIT="${RUGIX_ADMIN_ADDRESS+x}"
 RUGIX_ADMIN_ADDRESS="${RUGIX_ADMIN_ADDRESS:-127.0.0.1:7492}"
 RUGIX_ADMIN_PORT="${RUGIX_ADMIN_PORT:-${RUGIX_ADMIN_ADDRESS##*:}}"
+RUGIX_DAEMON_FEATURES="${RUGIX_DAEMON_FEATURES-system-commit,system-reboot}"
 
 case "$(uname -m)" in
     x86_64|amd64)
@@ -64,6 +65,35 @@ fi
 
 if ! [[ "${RUGIX_ADMIN_ADDRESS}" =~ ^[][0-9A-Fa-f.:]+$ ]]; then
     echo "invalid Rugix Admin address: ${RUGIX_ADMIN_ADDRESS}" >&2
+    exit 1
+fi
+
+feature_enabled() {
+    if [[ ",${RUGIX_DAEMON_FEATURES}," == *",$1,"* ]]; then
+        echo true
+    else
+        echo false
+    fi
+}
+
+if [[ -n "${RUGIX_DAEMON_FEATURES}" ]]; then
+    if ! [[ "${RUGIX_DAEMON_FEATURES}" =~ ^[a-z-]+(,[a-z-]+)*$ ]]; then
+        echo "invalid RUGIX_DAEMON_FEATURES: expected comma-separated feature names" >&2
+        exit 1
+    fi
+    IFS=, read -r -a features <<<"${RUGIX_DAEMON_FEATURES}"
+    for feature in "${features[@]}"; do
+        case "${feature}" in
+            factory-reset|system-commit|system-reboot|app-lifecycle) ;;
+            *) echo "unknown Rugix daemon feature: ${feature}" >&2; exit 1 ;;
+        esac
+    done
+fi
+
+# Restrict names to DNS host characters so the TOML strings need no escaping.
+if [[ -n "${RUGIX_ADMIN_ALLOWED_HOSTS:-}" ]] \
+    && ! [[ "${RUGIX_ADMIN_ALLOWED_HOSTS}" =~ ^[a-zA-Z0-9.-]+(,[a-zA-Z0-9.-]+)*$ ]]; then
+    echo "invalid RUGIX_ADMIN_ALLOWED_HOSTS: expected comma-separated host names without ports" >&2
     exit 1
 fi
 
@@ -148,14 +178,32 @@ getent group rugix-daemon >/dev/null || groupadd --system rugix-daemon
 
 install -d -m 755 /etc/rugix
 if [[ ! -e /etc/rugix/daemon.toml ]]; then
-    cat >/etc/rugix/daemon.toml <<'EOF'
+    cat >/etc/rugix/daemon.toml <<EOF
 [features]
-factory-reset = true
-system-commit = true
-system-reboot = true
-app-lifecycle = true
+factory-reset = $(feature_enabled factory-reset)
+system-commit = $(feature_enabled system-commit)
+system-reboot = $(feature_enabled system-reboot)
+app-lifecycle = $(feature_enabled app-lifecycle)
 EOF
     chmod 644 /etc/rugix/daemon.toml
+    daemon_features_summary="${RUGIX_DAEMON_FEATURES:-none}"
+else
+    daemon_features_summary="as configured in the existing /etc/rugix/daemon.toml"
+fi
+
+if [[ -v RUGIX_ADMIN_ALLOWED_HOSTS ]]; then
+    if [[ -e /etc/rugix/admin.toml ]]; then
+        echo "preserving /etc/rugix/admin.toml; edit allowed-hosts there to change the list"
+    else
+        allowed_hosts='[]'
+        if [[ -n "${RUGIX_ADMIN_ALLOWED_HOSTS}" ]]; then
+            IFS=, read -r -a hosts <<<"${RUGIX_ADMIN_ALLOWED_HOSTS}"
+            printf -v host_entries '"%s",' "${hosts[@]}"
+            allowed_hosts="[${host_entries%,}]"
+        fi
+        printf 'allowed-hosts = %s\n' "${allowed_hosts}" >/etc/rugix/admin.toml
+        chmod 644 /etc/rugix/admin.toml
+    fi
 fi
 
 admin_exec_start="/usr/bin/rugix-admin"
@@ -174,6 +222,8 @@ Type=simple
 User=root
 Group=rugix-daemon
 UMask=0117
+RuntimeDirectory=rugix
+RuntimeDirectoryMode=0750
 ExecStart=/usr/bin/rugix-ctrl daemon
 Restart=on-failure
 
@@ -208,6 +258,9 @@ systemctl restart rugix-admin.service
 cat <<EOF
 
 Rugix Admin is installed and listening on ${RUGIX_ADMIN_ADDRESS}.
+
+Enabled optional daemon features: ${daemon_features_summary}.
+To change them, edit /etc/rugix/daemon.toml and restart rugix-ctrl-daemon.service.
 
 Next steps:
   Open Rugix Admin through an address that reaches the configured listener on

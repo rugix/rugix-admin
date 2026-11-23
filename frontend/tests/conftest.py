@@ -9,12 +9,14 @@ import socket
 import subprocess
 import time
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
 import pytest
+from playwright.sync_api import Page, Response
 
 TESTS_ROOT = Path(__file__).resolve().parent
 FRONTEND_ROOT = TESTS_ROOT.parent
@@ -74,10 +76,8 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
     fake_target.chmod(0o755)
 
     admin_port = _free_port()
-    frontend_port = _free_port()
     admin_address = f"127.0.0.1:{admin_port}"
     admin_url = f"http://{admin_address}"
-    frontend_url = f"http://127.0.0.1:{frontend_port}"
 
     env = {
         **os.environ,
@@ -86,52 +86,53 @@ def admin_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AdminServ
         "RUGIX_ADMIN_FAKE_DIR": str(fake_dir),
     }
 
-    processes: list[subprocess.Popen] = []
-    try:
-        admin_log = (log_dir / "rugix-admin.log").open("wb")
-        admin = subprocess.Popen(
-            [
-                "cargo",
-                "run",
-                "-p",
-                "rugix-admin",
-                "--",
-                "--address",
-                admin_address,
-            ],
-            cwd=ADMIN_ROOT,
-            env=env,
-            stdout=admin_log,
-            stderr=subprocess.STDOUT,
-        )
-        processes.append(admin)
+    with _server(
+        ["cargo", "run", "-p", "rugix-admin", "--", "--address", admin_address],
+        cwd=ADMIN_ROOT,
+        env=env,
+        log_path=log_dir / "rugix-admin.log",
+    ) as admin:
         _wait_for_url(f"{admin_url}/api/health", admin, timeout=150)
+        yield AdminServer(frontend_url=admin_url, fake_dir=fake_dir)
 
-        vite_log = (log_dir / "vite.log").open("wb")
-        vite = subprocess.Popen(
-            [
-                "pnpm",
-                "run",
-                "dev",
-                "--port",
-                str(frontend_port),
-                "--strictPort",
-            ],
-            cwd=FRONTEND_ROOT,
-            env={
-                **env,
-                "RUGIX_ADMIN_API_TARGET": admin_url,
-            },
-            stdout=vite_log,
-            stderr=subprocess.STDOUT,
-        )
-        processes.append(vite)
-        _wait_for_url(frontend_url, vite, timeout=60)
 
-        yield AdminServer(frontend_url=frontend_url, fake_dir=fake_dir)
-    finally:
-        for process in reversed(processes):
-            _terminate(process)
+@pytest.fixture(scope="session")
+def vite_server(
+    admin_server: AdminServer, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[AdminServer]:
+    """Expose frontend source modules for tests of the API client contracts."""
+    port = _free_port()
+    url = f"http://127.0.0.1:{port}"
+    with _server(
+        ["pnpm", "run", "dev", "--port", str(port), "--strictPort"],
+        cwd=FRONTEND_ROOT,
+        env={**os.environ, "RUGIX_ADMIN_API_TARGET": admin_server.frontend_url},
+        log_path=tmp_path_factory.mktemp("rugix-admin-vite") / "vite.log",
+    ) as vite:
+        _wait_for_url(url, vite, timeout=60)
+        yield AdminServer(frontend_url=url, fake_dir=admin_server.fake_dir)
+
+
+@pytest.fixture(autouse=True)
+def enforce_browser_security(page: Page) -> Iterator[None]:
+    """Fail if the embedded UI violates CSP or the API rejects a browser request."""
+    violations: list[str] = []
+    rejections: list[str] = []
+
+    def check_response(response: Response) -> None:
+        if "/api/" in response.url and response.status in (403, 421):
+            rejections.append(f"{response.status} {response.request.method} {response.url}")
+
+    page.expose_binding("reportCspViolation", lambda _source, message: violations.append(message))
+    page.add_init_script(
+        """document.addEventListener('securitypolicyviolation', event => {
+            window.reportCspViolation(event.violatedDirective + ': ' + event.blockedURI);
+        });"""
+    )
+    page.on("response", check_response)
+    yield
+    assert not violations, violations
+    assert not rejections, rejections
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -193,6 +194,20 @@ def _wait_for_url(url: str, process: subprocess.Popen, timeout: float) -> None:
             last_error = error
         time.sleep(0.25)
     raise TimeoutError(f"timed out waiting for {url}: {last_error}")
+
+
+@contextmanager
+def _server(
+    args: list[str], *, cwd: Path, env: dict[str, str], log_path: Path
+) -> Iterator[subprocess.Popen]:
+    with log_path.open("wb") as log:
+        process = subprocess.Popen(
+            args, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT
+        )
+        try:
+            yield process
+        finally:
+            _terminate(process)
 
 
 def _terminate(process: subprocess.Popen) -> None:

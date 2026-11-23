@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- API clients must send `X-Rugix-Admin: 1` with every POST and use UUIDs for
+  client-supplied installation job IDs.
+- Add the `allowed-hosts` setting for access by DNS name. IP literals and
+  `localhost` are accepted by default.
+- Restrict how browsers load and embed Rugix Admin, and bound job history,
+  concurrent operations, JSON request sizes, and job output line lengths.
+- On new standalone installations, enable system commit and reboot by default.
+  Set `RUGIX_DAEMON_FEATURES` to select the daemon features to enable.
+
 ## 0.6.0 - 2026-11-02
 
 Behavior Changes:

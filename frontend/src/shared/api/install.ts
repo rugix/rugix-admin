@@ -39,6 +39,7 @@ export function uploadBundle(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
+    xhr.setRequestHeader("X-Rugix-Admin", "1");
     xhr.responseType = "text";
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {

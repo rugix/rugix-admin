@@ -3,20 +3,26 @@
 //! This module runs typed query commands, forwards bundle uploads, and translates
 //! machine-readable Rugix Ctrl events into Rugix Admin job events.
 
+use std::io;
+use std::process::Output;
 use std::process::Stdio;
 
 use axum::extract::multipart::Field;
 use axum::extract::Multipart;
+use axum::http::StatusCode;
 use reportify::Report;
 use reportify::ResultExt;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use tokio::io::AsyncBufRead;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncRead;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::process::Child;
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tracing::debug;
 use tracing::error;
@@ -31,6 +37,9 @@ use crate::jobs::JobManager;
 use crate::terminal_output::sanitize_terminal_bytes;
 use crate::terminal_output::sanitize_terminal_text;
 use crate::ApiResult;
+
+const MAX_LINE_BYTES: usize = 16 * 1024;
+static QUERY_SLOTS: Semaphore = Semaphore::const_new(8);
 
 reportify::new_whatever_type! {
     /// Multipart upload processing error.
@@ -74,11 +83,7 @@ where
     T: DeserializeOwned,
 {
     debug!("running rugix-ctrl JSON command");
-    let output = Command::new("rugix-ctrl")
-        .args(args)
-        .output()
-        .await
-        .map_err(|err| ApiError::command_spawn("rugix-ctrl", err))?;
+    let output = read_only_output(args).await?;
 
     if !output.status.success() {
         return Err(ApiError::command_failed("rugix-ctrl", &output));
@@ -102,11 +107,7 @@ where
 {
     let args = ["components", "check"];
     debug!("running rugix-ctrl components check");
-    let output = Command::new("rugix-ctrl")
-        .args(args)
-        .output()
-        .await
-        .map_err(|err| ApiError::command_spawn("rugix-ctrl", err))?;
+    let output = read_only_output(&args).await?;
 
     match output.status.code() {
         Some(0 | 1) => {
@@ -119,6 +120,19 @@ where
         }
         _ => Err(ApiError::command_failed("rugix-ctrl", &output)),
     }
+}
+
+async fn read_only_output(args: &[&str]) -> ApiResult<Output> {
+    let _permit = QUERY_SLOTS
+        .acquire()
+        .await
+        .expect("the read-only command semaphore is never closed");
+    Command::new("rugix-ctrl")
+        .args(args)
+        .kill_on_drop(true)
+        .output()
+        .await
+        .map_err(|err| ApiError::command_spawn("rugix-ctrl", err))
 }
 
 #[tracing::instrument(level = "info", skip_all, fields(%job_id))]
@@ -138,7 +152,8 @@ pub(crate) fn spawn_command_job(jobs: JobManager, job_id: String, args: Vec<Stri
                 Ok(child) => child,
                 Err(err) => {
                     error!(error = %err, "failed to spawn rugix-ctrl for job");
-                    jobs.fail(&job_id, format!("failed to spawn rugix-ctrl: {err}"), None)
+                    let _ = jobs
+                        .fail(&job_id, format!("failed to spawn rugix-ctrl: {err}"), None)
                         .await;
                     return;
                 }
@@ -169,14 +184,45 @@ pub(crate) fn spawn_command_job(jobs: JobManager, job_id: String, args: Vec<Stri
     );
 }
 
+/// Keeps processing an accepted upload if the request handler is cancelled.
+pub(crate) async fn run_upload_job(
+    jobs: JobManager,
+    job_id: String,
+    args: Vec<String>,
+    multipart: Multipart,
+    file_field: &'static str,
+) -> ApiResult<jobs::Job> {
+    let task = tokio::spawn(stream_upload_job(
+        jobs.clone(),
+        job_id.clone(),
+        args,
+        multipart,
+        file_field,
+    ));
+    match task.await {
+        Ok(result) => result,
+        Err(error) => {
+            error!(%job_id, %error, "upload task failed");
+            let _ = jobs
+                .fail(&job_id, "upload task failed".to_owned(), None)
+                .await;
+            Err(ApiError::request_rejection(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "upload-task-failed",
+                "upload task failed",
+            ))
+        }
+    }
+}
+
 #[tracing::instrument(level = "info", skip_all, fields(%job_id, %file_field))]
-pub(crate) async fn stream_upload_job(
+async fn stream_upload_job(
     jobs: JobManager,
     job_id: String,
     args: Vec<String>,
     mut multipart: Multipart,
     file_field: &'static str,
-) {
+) -> ApiResult<jobs::Job> {
     info!(%job_id, %file_field, "starting upload job");
     jobs.set_status(&job_id, jobs::JobStatus::Running).await;
     let mut child = match Command::new("rugix-ctrl")
@@ -189,10 +235,10 @@ pub(crate) async fn stream_upload_job(
         Ok(child) => child,
         Err(err) => {
             error!(%job_id, error = %err, "failed to spawn rugix-ctrl for upload");
-            jobs.fail(&job_id, format!("failed to spawn rugix-ctrl: {err}"), None)
-                .await;
             drain_upload_after_failure(&job_id, &mut multipart).await;
-            return;
+            return jobs
+                .fail(&job_id, format!("failed to spawn rugix-ctrl: {err}"), None)
+                .await;
         }
     };
 
@@ -215,11 +261,19 @@ pub(crate) async fn stream_upload_job(
 
     let Some(stdin) = child.stdin.take() else {
         error!(%job_id, "rugix-ctrl stdin is unavailable");
-        jobs.fail(&job_id, "rugix-ctrl stdin is unavailable".to_owned(), None)
-            .await;
         drain_upload_after_failure(&job_id, &mut multipart).await;
-        spawn_wait_for_child(jobs, job_id, child, stdout_task, stderr_task, false);
-        return;
+        wait_for_child(
+            jobs.clone(),
+            job_id.clone(),
+            child,
+            stdout_task,
+            stderr_task,
+            false,
+        )
+        .await;
+        return jobs
+            .fail(&job_id, "rugix-ctrl stdin is unavailable".to_owned(), None)
+            .await;
     };
 
     let mut stdin = Some(stdin);
@@ -303,26 +357,29 @@ pub(crate) async fn stream_upload_job(
         upload_error.get_or_insert_with(|| format!("missing `{file_field}` file field"));
     }
 
-    if let Some(message) = &upload_error {
-        jobs.fail(&job_id, message.clone(), None).await;
-    } else {
-        info!(
-            %job_id,
-            bytes_read,
-            bytes_written,
-            "upload streamed to rugix-ctrl"
-        );
+    drop(stdin);
+    if let Some(message) = upload_error {
+        wait_for_child(
+            jobs.clone(),
+            job_id.clone(),
+            child,
+            stdout_task,
+            stderr_task,
+            false,
+        )
+        .await;
+        return jobs.fail(&job_id, message, None).await;
     }
 
-    drop(stdin);
-    spawn_wait_for_child(
-        jobs,
-        job_id,
-        child,
-        stdout_task,
-        stderr_task,
-        upload_error.is_none(),
+    info!(
+        %job_id,
+        bytes_read,
+        bytes_written,
+        "upload streamed to rugix-ctrl"
     );
+    let job = jobs.get(&job_id).await;
+    spawn_wait_for_child(jobs, job_id, child, stdout_task, stderr_task);
+    job
 }
 
 fn spawn_wait_for_child(
@@ -331,20 +388,11 @@ fn spawn_wait_for_child(
     child: Child,
     stdout_task: Option<JoinHandle<()>>,
     stderr_task: Option<JoinHandle<()>>,
-    update_job_status: bool,
 ) {
-    let span = tracing::info_span!("rugix_ctrl_wait", %job_id, update_job_status);
+    let span = tracing::info_span!("rugix_ctrl_wait", %job_id);
     tokio::spawn(
         async move {
-            wait_for_child(
-                jobs,
-                job_id,
-                child,
-                stdout_task,
-                stderr_task,
-                update_job_status,
-            )
-            .await;
+            wait_for_child(jobs, job_id, child, stdout_task, stderr_task, true).await;
         }
         .instrument(span),
     );
@@ -378,12 +426,13 @@ async fn wait_for_child(
         Err(err) => {
             error!(%job_id, error = %err, "failed to wait for rugix-ctrl");
             if update_job_status {
-                jobs.fail(
-                    &job_id,
-                    format!("failed to wait for rugix-ctrl: {err}"),
-                    None,
-                )
-                .await;
+                let _ = jobs
+                    .fail(
+                        &job_id,
+                        format!("failed to wait for rugix-ctrl: {err}"),
+                        None,
+                    )
+                    .await;
             }
         }
     }
@@ -411,18 +460,28 @@ async fn read_output_lines<R>(
     let mut bytes = Vec::new();
     loop {
         bytes.clear();
-        match reader.read_until(b'\n', &mut bytes).await {
+        match (&mut reader)
+            .take(MAX_LINE_BYTES as u64 + 1)
+            .read_until(b'\n', &mut bytes)
+            .await
+        {
             Ok(0) => break,
             Ok(_) => {
                 if bytes.last() == Some(&b'\n') {
                     bytes.pop();
                 }
-                if bytes.last() == Some(&b'\r') {
+                let truncated = bytes.len() > MAX_LINE_BYTES;
+                if !truncated && bytes.last() == Some(&b'\r') {
                     bytes.pop();
                 }
-                let line = sanitize_terminal_bytes(&bytes);
+                bytes.truncate(MAX_LINE_BYTES);
+                let mut line = sanitize_terminal_bytes(&bytes);
+                if truncated {
+                    line.push('…');
+                }
                 debug!(%job_id, ?stream, "received rugix-ctrl output line");
-                if matches!(stream, events::JobOutputStream::Stdout)
+                if !truncated
+                    && matches!(stream, events::JobOutputStream::Stdout)
                     && line.trim_start().starts_with('{')
                 {
                     match parse_ctrl_event(&line) {
@@ -436,12 +495,34 @@ async fn read_output_lines<R>(
                     }
                 }
                 jobs.emit_output(&job_id, stream.clone(), line).await;
+                if truncated {
+                    if let Err(err) = discard_line_tail(&mut reader).await {
+                        warn!(%job_id, ?stream, error = %err, "failed to discard rugix-ctrl output");
+                        break;
+                    }
+                }
             }
             Err(err) => {
                 warn!(%job_id, ?stream, error = %err, "failed to read rugix-ctrl output");
                 break;
             }
         }
+    }
+}
+
+/// Consumes the remainder of an oversized line without allocating a buffer.
+async fn discard_line_tail(reader: &mut (impl AsyncBufRead + Unpin)) -> io::Result<()> {
+    loop {
+        let bytes = reader.fill_buf().await?;
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        if let Some(newline) = bytes.iter().position(|byte| *byte == b'\n') {
+            reader.consume(newline + 1);
+            return Ok(());
+        }
+        let len = bytes.len();
+        reader.consume(len);
     }
 }
 
@@ -536,6 +617,41 @@ enum CtrlEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Verifies truncation at EOF and resumption after an oversized line's newline.
+    #[tokio::test]
+    async fn truncates_oversized_output() {
+        let manager = JobManager::default();
+        let job = manager
+            .create(
+                None,
+                "Test job".to_owned(),
+                jobs::JobKind::SystemAction,
+                None,
+            )
+            .await
+            .unwrap();
+        let oversized = "x".repeat(1024 * 1024);
+        let input = format!("{oversized}\nnext line\n{oversized}");
+        read_output_lines(
+            manager.clone(),
+            job.id.clone().into(),
+            events::JobOutputStream::Stdout,
+            input.as_bytes(),
+        )
+        .await;
+
+        let (history, _) = manager.subscribe(&job.id).await.unwrap();
+        let lines: Vec<_> = history
+            .iter()
+            .filter_map(|event| match &event.event {
+                events::AdminEvent::JobOutput(output) => Some(output.line.as_str()),
+                _ => None,
+            })
+            .collect();
+        let truncated = format!("{}…", "x".repeat(MAX_LINE_BYTES));
+        assert_eq!(lines, [truncated.as_str(), "next line", truncated.as_str()]);
+    }
 
     /// Verifies that every structured Rugix Ctrl event consumed by the UI is decoded.
     #[test]

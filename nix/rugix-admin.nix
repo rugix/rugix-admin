@@ -34,6 +34,12 @@ in
       description = "TCP port on which Rugix Admin listens.";
     };
 
+    allowedHosts = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      description = "Additional host names under which clients reach Rugix Admin.";
+    };
+
     openFirewall = mkOption {
       type = types.bool;
       default = false;
@@ -49,6 +55,7 @@ in
 
     environment.etc."rugix/admin.toml".source = toml.generate "rugix-admin.toml" {
       address = "${cfg.listenAddress}:${toString cfg.port}";
+      allowed-hosts = cfg.allowedHosts;
     };
 
     networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [ cfg.port ];

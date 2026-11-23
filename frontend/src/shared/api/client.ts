@@ -30,7 +30,11 @@ export async function request<T>(
   try {
     response = await fetch(url, {
       ...requestInit,
-      headers: { Accept: "application/json", ...(headers ?? {}) },
+      headers: {
+        Accept: "application/json",
+        "X-Rugix-Admin": "1",
+        ...(headers ?? {}),
+      },
     });
   } catch (error) {
     throw new ApiRequestError(
