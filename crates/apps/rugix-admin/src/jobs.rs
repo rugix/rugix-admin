@@ -15,6 +15,9 @@ use crate::generated::events;
 use crate::generated::jobs;
 use crate::ApiResult;
 
+const MAX_ACTIVE_JOBS: usize = 4;
+const MAX_RETAINED_JOBS: usize = 50;
+
 const JOB_EVENT_CHANNEL_CAPACITY: usize = 128;
 const JOB_EVENT_HISTORY_CAPACITY: usize = 512;
 const SERVER_EVENT_CHANNEL_CAPACITY: usize = 32;
@@ -65,6 +68,21 @@ impl JobManager {
         target: Option<String>,
     ) -> ApiResult<jobs::Job> {
         let id = id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let mut inner = self.inner.write().await;
+        if inner.contains_key(&id) {
+            return Err(ApiError::conflict("job-exists", "job id already exists"));
+        }
+        if inner
+            .values()
+            .filter(|entry| !is_terminal(&entry.job.status))
+            .count()
+            >= MAX_ACTIVE_JOBS
+        {
+            return Err(ApiError::conflict(
+                "too-many-jobs",
+                "too many operations are in progress",
+            ));
+        }
         tracing::info!(job_id = %id, %title, ?kind, target = ?target, "creating job");
         let now = now();
         let job = jobs::Job::new(
@@ -84,10 +102,6 @@ impl JobManager {
         let mut events = VecDeque::new();
         events.push_back(event);
 
-        let mut inner = self.inner.write().await;
-        if inner.contains_key(&id) {
-            return Err(ApiError::conflict("job-exists", "job id already exists"));
-        }
         inner.insert(
             id,
             JobEntry {
@@ -96,9 +110,16 @@ impl JobManager {
                 next_event_sequence: 2,
                 last_install_progress_percent: None,
                 last_stderr_line: None,
-                tx: tx.clone(),
+                tx,
             },
         );
+        if inner.len() > MAX_RETAINED_JOBS {
+            let oldest_finished = inner
+                .values()
+                .position(|entry| is_terminal(&entry.job.status))
+                .expect("retention exceeds the cap only when finished jobs exist");
+            inner.shift_remove_index(oldest_finished);
+        }
         Ok(job)
     }
 
@@ -144,13 +165,17 @@ impl JobManager {
         self.update_job(job_id, |job| job.status = status).await;
     }
 
-    pub(crate) async fn fail(&self, job_id: &str, message: String, exit_code: Option<i32>) {
+    pub(crate) async fn fail(
+        &self,
+        job_id: &str,
+        message: String,
+        exit_code: Option<i32>,
+    ) -> ApiResult<jobs::Job> {
         tracing::warn!(%job_id, ?exit_code, "failing job");
-        self.set_status(
-            job_id,
-            jobs::JobStatus::Failed(jobs::JobFailure::new(message).with_exit_code(exit_code)),
-        )
-        .await;
+        let failure = jobs::JobFailure::new(message).with_exit_code(exit_code);
+        self.update_job(job_id, |job| job.status = jobs::JobStatus::Failed(failure))
+            .await
+            .ok_or_else(|| ApiError::not_found("job-not-found", "job not found"))
     }
 
     pub(crate) async fn fail_command(&self, job_id: &str, exit_code: Option<i32>) {
@@ -166,7 +191,7 @@ impl JobManager {
                 Some(code) => format!("rugix-ctrl failed with exit code {code}"),
                 None => "rugix-ctrl failed without an exit code".to_owned(),
             });
-        self.fail(job_id, message, exit_code).await;
+        let _ = self.fail(job_id, message, exit_code).await;
     }
 
     pub(crate) async fn emit_output(
@@ -261,12 +286,16 @@ impl JobManager {
         .await;
     }
 
-    async fn update_job(&self, job_id: &str, update: impl FnOnce(&mut jobs::Job)) {
-        let (tx, event, completed) = {
+    async fn update_job(
+        &self,
+        job_id: &str,
+        update: impl FnOnce(&mut jobs::Job),
+    ) -> Option<jobs::Job> {
+        let (tx, event, completed, job) = {
             let mut inner = self.inner.write().await;
             let Some(entry) = inner.get_mut(job_id) else {
                 tracing::warn!(%job_id, "discarding a status change for an unknown job");
-                return;
+                return None;
             };
             let was_terminal = is_terminal(&entry.job.status);
             update(&mut entry.job);
@@ -275,12 +304,13 @@ impl JobManager {
             let event =
                 events::AdminEvent::JobChanged(events::JobChangedEvent::new(entry.job.clone()));
             let (tx, event) = push_entry_event(entry, event);
-            (tx, event, completed)
+            (tx, event, completed, entry.job.clone())
         };
         send_live_event(job_id, &tx, event);
         if completed {
             send_server_event(&self.server_tx, events::ServerEvent::InvalidateAll);
         }
+        Some(job)
     }
 
     async fn push_event(&self, job_id: &str, event: events::AdminEvent) {
@@ -357,6 +387,44 @@ mod tests {
     use tokio::sync::broadcast::error::TryRecvError;
 
     use super::*;
+
+    /// Verifies that retention evicts the oldest finished job and closes its stream.
+    #[tokio::test]
+    async fn retention_keeps_running_jobs() {
+        let manager = JobManager::default();
+        let create_job = || {
+            manager.create(
+                None,
+                "Test job".to_owned(),
+                jobs::JobKind::SystemAction,
+                None,
+            )
+        };
+        let running = create_job().await.unwrap();
+        manager
+            .set_status(&running.id, jobs::JobStatus::Running)
+            .await;
+        let oldest_finished = create_job().await.unwrap();
+        manager
+            .set_status(&oldest_finished.id, jobs::JobStatus::Succeeded)
+            .await;
+        let (_, mut oldest_events) = manager.subscribe(&oldest_finished.id).await.unwrap();
+
+        for _ in 0..49 {
+            let job = create_job().await.unwrap();
+            manager
+                .set_status(&job.id, jobs::JobStatus::Succeeded)
+                .await;
+        }
+
+        assert_eq!(manager.list().await.len(), 50);
+        assert!(manager.get(&running.id).await.is_ok());
+        assert!(manager.get(&oldest_finished.id).await.is_err());
+        assert!(matches!(
+            oldest_events.try_recv(),
+            Err(TryRecvError::Closed)
+        ));
+    }
 
     /// Verifies that replayed job events retain their original increasing sequences.
     #[tokio::test]

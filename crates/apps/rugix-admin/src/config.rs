@@ -61,6 +61,14 @@ mod tests {
         assert_eq!(config.address, Some("127.0.0.1:9000".parse().unwrap()));
     }
 
+    /// Verifies that the kebab-case setting parses as a list of hosts.
+    #[test]
+    fn parses_allowed_hosts() {
+        let config = parse_config(r#"allowed-hosts = ["device.local"]"#).unwrap();
+
+        assert_eq!(config.allowed_hosts.unwrap().as_ref(), ["device.local"]);
+    }
+
     /// Verifies that misspelled configuration fields fail closed.
     #[test]
     fn rejects_unknown_fields() {
@@ -100,6 +108,7 @@ mod tests {
     fn cli_address_overrides_config() {
         let config = Config {
             address: Some("127.0.0.1:9000".parse().unwrap()),
+            ..Config::default()
         };
 
         assert_eq!(
@@ -113,6 +122,7 @@ mod tests {
     fn uses_config_address_before_default() {
         let config = Config {
             address: Some("127.0.0.1:9000".parse().unwrap()),
+            ..Config::default()
         };
 
         assert_eq!(

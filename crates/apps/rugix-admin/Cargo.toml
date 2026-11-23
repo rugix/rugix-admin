@@ -32,3 +32,4 @@ sidex-build-rs.workspace = true
 
 [dev-dependencies]
 serde_urlencoded.workspace = true
+tower = { workspace = true, features = ["util"] }

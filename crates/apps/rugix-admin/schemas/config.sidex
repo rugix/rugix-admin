@@ -10,4 +10,7 @@ opaque SocketAddress
 record Config {
     /// Address on which the HTTP service listens.
     address?: SocketAddress,
+    /// Additional host names, without ports, under which clients reach Rugix Admin.
+    /// IP addresses and localhost are always accepted.
+    allowed_hosts?: [string],
 }

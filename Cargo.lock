@@ -1016,6 +1016,7 @@ dependencies = [
  "sidex-build-rs",
  "tokio",
  "toml 0.5.11",
+ "tower",
  "tracing",
  "uuid",
 ]

@@ -159,7 +159,9 @@ after `--`, for example `mise run test:e2e -- -k login`. Use
 `mise run test:e2e:headed` to open a visible browser on a host with a display.
 No prior `nix develop` step is needed.
 
-The browser tests run against a simulated Rugix Ctrl. The
+The browser tests use a simulated Rugix Ctrl. They exercise the embedded
+production UI, and the API client contract tests load source modules through
+Vite. The
 [system tests](tests/README.md) run Rugix Admin on a real Rugix system in a
 virtual machine with `mise run test:system`.
 

@@ -28,6 +28,7 @@ sidex = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.1", feature
 sidex-build-rs = { git = "https://github.com/silitics/sidex.git", tag = "v0.4.1" }
 tokio = "1.29.1"
 toml = "0.5.11"
+tower = "0.4"
 tracing = "0.1"
 uuid = "1.11.0"
 
